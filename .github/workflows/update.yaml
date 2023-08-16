@@ -1,0 +1,24 @@
+name: Sync Repository
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+
+jobs:
+  sync-repository:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Sync repository content
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git remote add source https://github.com/oceanbase/miniob.git
+          git fetch source
+          git switch public
+          git reset --hard source/main
+          git push origin HEAD:public --force
+
