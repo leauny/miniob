@@ -1,0 +1,39 @@
+name: Sync Repository
+
+on:
+  push:
+    branches: [ "main", "public", "dev" ]
+  pull_request:
+    branches: [ "main", "public", "dev" ]
+  # 每2小时运行
+  schedule:
+    - cron: "0 */2 * * *"
+  # 手动运行
+  workflow_dispatch:
+
+jobs:
+  sync-repository:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          ref: 'public'
+
+      - name: Setting config
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Sync repository content
+        run: |
+          git remote add source https://github.com/oceanbase/miniob.git
+          git fetch source
+
+      - name: Merge
+        run: |
+          git switch public
+          git reset --hard source/main
+          git push origin HEAD:public --force
+
