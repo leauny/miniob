@@ -12,9 +12,10 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Wangyunlai on 2021/5/13.
 //
 
-#include <limits.h>
-#include <string.h>
+#include <climits>
+#include <cstring>
 #include <algorithm>
+#include <cstdio>
 
 #include "common/defs.h"
 #include "storage/table/table.h"
@@ -120,6 +121,29 @@ RC Table::create(int32_t table_id,
   base_dir_ = base_dir;
   LOG_INFO("Successfully create table %s:%s", base_dir, name);
   return rc;
+}
+
+RC Table::drop(const char *name) {
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to drop table %s:%s", base_dir_.c_str(), name);
+  std::string table_file_path = table_meta_file(base_dir_.c_str(), name);
+  if (std::remove(table_file_path.c_str()) == 0) {
+    LOG_INFO("drop table meta file %s:%s success", base_dir_.c_str(), name);
+  } else {
+    LOG_WARN("drop table meta file %s:%s failed!", base_dir_.c_str(), name);
+    return RC::IOERR_ACCESS;
+  }
+  std::string data_file_path = table_data_file(base_dir_.c_str(), name);
+  if (std::remove(data_file_path.c_str()) == 0) {
+    LOG_INFO("drop table data file %s:%s success", base_dir_.c_str(), name);
+  } else {
+    LOG_WARN("drop table data file %s:%s failed!", base_dir_.c_str(), name);
+    return RC::IOERR_ACCESS;
+  }
+  return RC::SUCCESS;
 }
 
 RC Table::open(const char *meta_file, const char *base_dir)
