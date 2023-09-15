@@ -13,13 +13,15 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <sstream>
+#include <string>
+#include <iomanip>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats",  "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -58,6 +60,9 @@ Value::Value(const char *s, int len /*= 0*/)
   set_string(s, len);
 }
 
+Value::Value(date val) {
+  set_date(val);
+}
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -76,6 +81,10 @@ void Value::set_data(char *data, int length)
       num_value_.bool_value_ = *(int *)data != 0;
       length_ = length;
     } break;
+    case DATES: {
+      date_value_ = string_to_date(data);
+      length_ = length;
+    }
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
     } break;
@@ -111,7 +120,12 @@ void Value::set_string(const char *s, int len /*= 0*/)
   }
   length_ = str_value_.length();
 }
-
+void Value::set_date(std::chrono::year_month_day val)
+{
+  attr_type_ = DATES;
+  date_value_ = val;
+  length_ = date_to_string(date_value_).size();
+}
 void Value::set_value(const Value &value)
 {
   switch (value.attr_type_) {
@@ -127,6 +141,9 @@ void Value::set_value(const Value &value)
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
+    case DATES: {
+      set_date(value.get_date());
+    };
     case UNDEFINED: {
       ASSERT(false, "got an invalid value type");
     } break;
@@ -139,6 +156,9 @@ const char *Value::data() const
     case CHARS: {
       return str_value_.c_str();
     } break;
+    case DATES: {
+      return date_to_string(date_value_).c_str();
+    }
     default: {
       return (const char *)&num_value_;
     } break;
@@ -158,6 +178,9 @@ std::string Value::to_string() const
     case BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
+    case DATES: {
+      os << date_to_string(date_value_);
+    }
     case CHARS: {
       os << str_value_;
     } break;
@@ -184,6 +207,9 @@ int Value::compare(const Value &other) const
             (void *)other.str_value_.c_str(),
             other.str_value_.length());
       } break;
+      case DATES: {
+        return common::compare_date((void *)&this->date_value_, (void *)&other.date_value_);
+      }
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
       }
@@ -300,4 +326,34 @@ bool Value::get_boolean() const
     }
   }
   return false;
+}
+date Value::get_date() const {
+  return this->date_value_;
+}
+
+std::string Value::date_to_string(date val) const
+{
+  int yearValue = static_cast<int>(val.year());
+  int monthValue = static_cast<unsigned>(val.month());
+  int dayValue = static_cast<unsigned>(val.day());
+  std::stringstream ss;
+  ss << yearValue << "-" << std::setw(2) << std::setfill('0') << monthValue << "-" << std::setw(2) << std::setfill('0') << dayValue;
+  return ss.str();
+}
+
+date Value::string_to_date(char * data)
+{
+  std::istringstream iss(data);
+  std::string token;
+
+  std::getline(iss, token, '-');
+  int year = std::stoi(token);
+
+  std::getline(iss, token, '-');
+  int month = std::stoi(token);
+
+  std::getline(iss, token);
+  int day = std::stoi(token);
+  std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
+  return ymd;
 }

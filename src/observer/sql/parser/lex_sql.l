@@ -27,6 +27,9 @@ while (0);
 %{
 #include<string.h>
 #include<stdio.h>
+#include<chrono>
+#include<string>
+#include<sstream>
 
 /**
  * flex 代码包含三个部分，使用 %% 分隔
@@ -35,6 +38,7 @@ while (0);
  * 第三个部分还是C代码，flex 会复制此段代码
  */
 
+#include "common/lang/string.h"
 #include "sql/parser/parse_defs.h"
 #include "common/log/log.h"
 #include "yacc_sql.hpp"
@@ -79,6 +83,21 @@ QUOTE            [\'\"]
 
 [\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
+'([0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2})'    {char *tmp = common::substr(yytext,1,strlen(yytext)-2);
+                                           std::istringstream iss(tmp);
+                                           std::string token;
+
+                                           std::getline(iss, token, '-');
+                                           int year = std::stoi(token);
+
+                                           std::getline(iss, token, '-');
+                                           int month = std::stoi(token);
+
+                                           std::getline(iss, token);
+                                           int day = std::stoi(token);
+                                           std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
+                                           yylval->dates=ymd;
+                                           RETURN_TOKEN(DATE); }
 
 ";"                                     RETURN_TOKEN(SEMICOLON);
 {DOT}                                   RETURN_TOKEN(DOT);
@@ -110,6 +129,7 @@ ROLLBACK                                RETURN_TOKEN(TRX_ROLLBACK);
 INT                                     RETURN_TOKEN(INT_T);
 CHAR                                    RETURN_TOKEN(STRING_T);
 FLOAT                                   RETURN_TOKEN(FLOAT_T);
+DATE                                    RETURN_TOKEN(DATE_T);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);

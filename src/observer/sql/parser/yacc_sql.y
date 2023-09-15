@@ -5,7 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <algorithm>
+#include <string>
+#include <sstream>
+#include <chrono>
 
+#include "sql/parser/value.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/parser/parse_defs.h"
@@ -77,6 +81,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INT_T
         STRING_T
         FLOAT_T
+        DATE_T
         HELP
         EXIT
         DOT //QUOTE
@@ -116,12 +121,14 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  date                              dates;
 }
 
 %token <number> NUMBER
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
+%token <dates>  DATE
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -329,7 +336,11 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      if ($2 == DATES) {
+        $$->length = 10;
+      } else {
+        $$->length = 4;
+      }
       free($1);
     }
     ;
@@ -340,6 +351,7 @@ type:
     INT_T      { $$=INTS; }
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
+    | DATE_T   { $$=DATES; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE 
@@ -384,6 +396,10 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+    }
+    |DATE {
+      $$ = new Value((date)$1);
+      @$ = @1;
     }
     ;
     
@@ -436,62 +452,13 @@ select_stmt:        /*  select 语句的语法解析树*/
       free($4);
     }
     ;
-calc_stmt:
-    CALC expression_list
-    {
-      $$ = new ParsedSqlNode(SCF_CALC);
-      std::reverse($2->begin(), $2->end());
-      $$->calc.expressions.swap(*$2);
-      delete $2;
-    }
-    ;
-
-expression_list:
-    expression
-    {
-      $$ = new std::vector<Expression*>;
-      $$->emplace_back($1);
-    }
-    | expression COMMA expression_list
-    {
-      if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<Expression *>;
-      }
-      $$->emplace_back($1);
-    }
-    ;
-expression:
-    expression '+' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
-    }
-    | expression '-' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
-    }
-    | expression '*' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
-    }
-    | expression '/' expression {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
-    }
-    | LBRACE expression RBRACE {
-      $$ = $2;
-      $$->set_name(token_name(sql_string, &@$));
-    }
-    | '-' expression %prec UMINUS {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
-    }
-    | value {
-      $$ = new ValueExpr(*$1);
-      $$->set_name(token_name(sql_string, &@$));
-      delete $1;
-    }
-    ;
-
 select_attr:
-    '*' {
+    '*' attr_list {
+      if ($2 != nullptr) {
+        $$ = $2;
+      } else {
       $$ = new std::vector<RelAttrSqlNode>;
+      }
       RelAttrSqlNode attr;
       attr.relation_name  = "";
       attr.attribute_name = "*";
@@ -562,7 +529,7 @@ where:
       $$ = nullptr;
     }
     | WHERE condition_list {
-      $$ = $2;  
+      $$ = $2;
     }
     ;
 condition_list:
@@ -594,7 +561,7 @@ condition:
       delete $1;
       delete $3;
     }
-    | value comp_op value 
+    | value comp_op value
     {
       $$ = new ConditionSqlNode;
       $$->left_is_attr = 0;
@@ -631,7 +598,6 @@ condition:
       delete $3;
     }
     ;
-
 comp_op:
       EQ { $$ = EQUAL_TO; }
     | LT { $$ = LESS_THAN; }
@@ -639,6 +605,59 @@ comp_op:
     | LE { $$ = LESS_EQUAL; }
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
+    ;
+
+calc_stmt:
+    CALC expression_list
+    {
+      $$ = new ParsedSqlNode(SCF_CALC);
+      std::reverse($2->begin(), $2->end());
+      $$->calc.expressions.swap(*$2);
+      delete $2;
+    }
+    ;
+
+expression_list:
+    expression
+    {
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+    }
+    | expression COMMA expression_list
+    {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Expression *>;
+      }
+      $$->emplace_back($1);
+    }
+    ;
+expression:
+    expression '+' expression {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
+    }
+    | expression '-' expression {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+    }
+    | expression '*' expression {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+    }
+    | expression '/' expression {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+    }
+    | LBRACE expression RBRACE {
+      $$ = $2;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | '-' expression %prec UMINUS {
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+    }
+    | value {
+      $$ = new ValueExpr(*$1);
+      $$->set_name(token_name(sql_string, &@$));
+      delete $1;
+    }
     ;
 
 load_data_stmt:
