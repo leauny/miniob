@@ -69,12 +69,6 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         LOG_WARN("date is valid, table=%s, value_type=%d",table_name, value_type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
-      int yearValue = static_cast<int>(dates.year());
-      int monthValue = static_cast<unsigned>(dates.month());
-      if (yearValue < 1968 || yearValue > 2038 || (yearValue == 2038 && monthValue > 1)) {
-        LOG_WARN("date is valid, table=%s, value_type=%d",table_name, value_type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
     }
   }
   // everything alright
