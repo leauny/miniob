@@ -28,7 +28,7 @@ class InsertStmt : public Stmt
 {
 public:
   InsertStmt() = default;
-  InsertStmt(Table *table, const Value *values, int value_amount);
+  InsertStmt(Table *table, const std::vector<std::vector<Value>> *values);
 
   StmtType type() const override
   {
@@ -43,17 +43,12 @@ public:
   {
     return table_;
   }
-  const Value *values() const
+  const std::vector<std::vector<Value>> *values() const
   {
     return values_;
-  }
-  int value_amount() const
-  {
-    return value_amount_;
   }
 
 private:
   Table *table_ = nullptr;
-  const Value *values_ = nullptr;
-  int value_amount_ = 0;
+  const std::vector<std::vector<Value>> *values_ = nullptr;
 };
