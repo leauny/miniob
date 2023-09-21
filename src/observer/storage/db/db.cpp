@@ -100,6 +100,26 @@ RC Db::create_table(const char *table_name, int attribute_count, const AttrInfoS
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name) {
+  RC rc = RC::SUCCESS;
+  // check table_name
+  if (opened_tables_.count(table_name) == 0) {
+    LOG_WARN("%s has been deleted before.", table_name);
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  auto table = opened_tables_[table_name];
+  rc = table->drop(table_name);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create table %s.", table_name);
+    delete table;
+    return rc;
+  }
+  delete table;
+  opened_tables_.erase(table_name);
+  return RC::SUCCESS;
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   std::unordered_map<std::string, Table *>::const_iterator iter = opened_tables_.find(table_name);

@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/explain_stmt.h"
 #include "sql/stmt/create_index_stmt.h"
 #include "sql/stmt/create_table_stmt.h"
+#include "sql/stmt/drop_table_stmt.h"
 #include "sql/stmt/desc_table_stmt.h"
 #include "sql/stmt/help_stmt.h"
 #include "sql/stmt/show_tables_stmt.h"
@@ -28,8 +29,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/exit_stmt.h"
 #include "sql/stmt/set_variable_stmt.h"
 #include "sql/stmt/load_data_stmt.h"
+#include "sql/stmt/calc_stmt.h"
 
-RC Stmt::create_stmt(Db *db, const ParsedSqlNode &sql_node, Stmt *&stmt)
+RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
 {
   stmt = nullptr;
 
@@ -60,6 +62,10 @@ RC Stmt::create_stmt(Db *db, const ParsedSqlNode &sql_node, Stmt *&stmt)
       return DescTableStmt::create(db, sql_node.desc_table, stmt);
     }
 
+    case SCF_DROP_TABLE: {
+      return DropTableStmt::create(db, sql_node.drop_table, stmt);
+    }
+
     case SCF_HELP: {
       return HelpStmt::create(stmt);
     }
@@ -87,6 +93,10 @@ RC Stmt::create_stmt(Db *db, const ParsedSqlNode &sql_node, Stmt *&stmt)
 
     case SCF_LOAD_DATA: {
       return LoadDataStmt::create(db, sql_node.load_data, stmt);
+    }
+
+    case SCF_CALC: {
+      return CalcStmt::create(sql_node.calc, stmt);
     }
 
     default: {

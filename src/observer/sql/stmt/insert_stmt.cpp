@@ -60,6 +60,17 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     }
   }
 
+  // check the date valid
+  for (int i = 0; i < value_num; i++) {
+    const AttrType value_type = values[i].attr_type();
+    if (value_type == DATES) {
+      auto dates = values[i].get_date();
+      if (!dates.ok()) {
+        LOG_WARN("date is valid, table=%s, value_type=%d",table_name, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+    }
+  }
   // everything alright
   stmt = new InsertStmt(table, values, value_num);
   return RC::SUCCESS;

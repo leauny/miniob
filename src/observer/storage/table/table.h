@@ -54,6 +54,7 @@ public:
             int attribute_count, 
             const AttrInfoSqlNode attributes[]);
 
+  RC drop(const char *name);
   /**
    * 打开一个表
    * @param meta_file 保存表元数据的文件完整路径
