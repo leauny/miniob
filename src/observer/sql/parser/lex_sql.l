@@ -83,21 +83,24 @@ QUOTE            [\'\"]
 
 [\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
-'([0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2})'    {char *tmp = common::substr(yytext,1,strlen(yytext)-2);
-                                           std::istringstream iss(tmp);
-                                           std::string token;
+\"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})\"    |
+'([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})'      {
+                                            char *tmp = common::substr(yytext,1,strlen(yytext)-2);
+                                            std::istringstream iss(tmp);
+                                            std::string token;
 
-                                           std::getline(iss, token, '-');
-                                           int year = std::stoi(token);
+                                            std::getline(iss, token, '-');
+                                            int year = std::stoi(token);
 
-                                           std::getline(iss, token, '-');
-                                           int month = std::stoi(token);
+                                            std::getline(iss, token, '-');
+                                            int month = std::stoi(token);
 
-                                           std::getline(iss, token);
-                                           int day = std::stoi(token);
-                                           std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
-                                           yylval->dates=ymd;
-                                           RETURN_TOKEN(DATE); }
+                                            std::getline(iss, token);
+                                            int day = std::stoi(token);
+                                            std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
+                                            yylval->dates=ymd;
+                                            RETURN_TOKEN(DATE);
+                                        }
 
 ";"                                     RETURN_TOKEN(SEMICOLON);
 {DOT}                                   RETURN_TOKEN(DOT);
