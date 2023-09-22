@@ -82,7 +82,7 @@ void Value::set_data(char *data, int length)
       length_ = length;
     } break;
     case DATES: {
-      date_value_ = string_to_date(data);
+      date_value_ = string_to_date(data, length);
       length_ = length;
     }
     default: {
@@ -341,9 +341,10 @@ std::string Value::date_to_string(date val) const
   return ss.str();
 }
 
-date Value::string_to_date(char * data)
+date Value::string_to_date(char * data, int length)
 {
-  std::istringstream iss(data);
+  char * tmp = common::substr(data, 0, length - 1);
+  std::istringstream iss(tmp);
   std::string token;
 
   std::getline(iss, token, '-');

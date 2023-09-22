@@ -100,7 +100,7 @@ public:
   bool get_boolean() const;
   date get_date() const;
   std::string date_to_string(date val) const;
-  date string_to_date(char * data);
+  date string_to_date(char * data, int length);
 
 
 private:
