@@ -209,10 +209,16 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
         ans.set_type(val.attr_type());
         if (val.attr_type() == INTS) { ans.set_int(val.get_int()); }
         else if (val.attr_type() == FLOATS) { ans.set_float(val.get_float()); }
+        else if (val.attr_type() == CHARS) {
+          // 隐式转换，直接取float
+          ans.set_type(FLOATS);
+          ans.set_float(val.get_float());
+        }
         else { return RC::INTERNAL; }
        } else {
         if (val.attr_type() == INTS) { ans.set_int(ans.get_int() + val.get_int()); }
         else if (val.attr_type() == FLOATS) { ans.set_float(ans.get_float() + val.get_float()); }
+        else if (val.attr_type() == CHARS) { ans.set_float(ans.get_float() + val.get_float()); }
         else { return RC::INTERNAL; }
        }
        break;
