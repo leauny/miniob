@@ -21,8 +21,8 @@ See the Mulan PSL v2 for more details. */
 class TupleCellSpec
 {
 public:
-  TupleCellSpec(const char *table_name, const char *field_name, const char *alias = nullptr);
-  TupleCellSpec(const char *alias);
+  TupleCellSpec(const char *table_name, const char *field_name, const char *alias = nullptr, AggType agg_type = AGG_NONE);
+  TupleCellSpec(const char *alias, AggType agg_type = AGG_NONE);
 
   const char *table_name() const
   {
@@ -36,9 +36,13 @@ public:
   {
     return alias_.c_str();
   }
+  AggType agg_type() const {
+    return agg_type_;
+  }
 
 private:
   std::string table_name_;
   std::string field_name_;
+  AggType agg_type_;
   std::string alias_;
 };

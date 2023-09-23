@@ -28,6 +28,20 @@ class Expression;
  */
 
 /**
+ * @brief 描述聚合函数的类型
+ */
+enum AggType: int
+{
+  AGG_NONE = 0,
+  AGG_MIN,
+  AGG_MAX,
+  AGG_AVG,
+  AGG_SUM,
+  AGG_COUNT,
+  AGG_WCOUNT,  // 通配符版本count
+};
+
+/**
  * @brief 描述一个属性
  * @ingroup SQLParser
  * @details 属性，或者说字段(column, field)
@@ -36,6 +50,7 @@ class Expression;
  */
 struct RelAttrSqlNode
 {
+  AggType agg_type{AGG_NONE};  ///< aggregation type            聚合函数类型，默认为NONE代表非聚合函数
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
 };

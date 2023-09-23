@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, const char *alias)
+TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, const char *alias, AggType agg_type)
 {
   if (table_name) {
     table_name_ = table_name;
@@ -27,6 +27,8 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
   if (field_name) {
     field_name_ = field_name;
   }
+  agg_type_ = agg_type;
+  // TODO(wty): alias used at ExpressionTuple::find_cell();
   if (alias) {
     alias_ = alias;
   } else {
@@ -35,11 +37,42 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
     } else {
       alias_ = table_name_ + "." + field_name_;
     }
+    switch (agg_type_) {
+      case AGG_NONE: break;
+      case AGG_COUNT: {
+        alias_ = "COUNT(" + alias_ + ")";
+        break;
+      }
+      case AGG_WCOUNT: {
+        alias_ = "COUNT(*)";
+        break;
+      }
+      case AGG_MIN: {
+        alias_ = "MIN(" + alias_ + ")";
+        break;
+      }
+      case AGG_MAX: {
+        alias_ = "MAX(" + alias_ + ")";
+        break;
+      }
+      case AGG_AVG: {
+        alias_ = "AVG(" + alias_ + ")";
+        break;
+      }
+      case AGG_SUM: {
+        alias_ = "SUM(" + alias_ + ")";
+        break;
+      }
+      default: {
+        LOG_ERROR("Unknown aggration type: %d.", static_cast<int>(agg_type));
+      }
+    }
   }
 }
 
-TupleCellSpec::TupleCellSpec(const char *alias)
+TupleCellSpec::TupleCellSpec(const char *alias, AggType agg_type)
 {
+  agg_type_ = agg_type;
   if (alias) {
     alias_ = alias;
   }

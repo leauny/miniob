@@ -110,6 +110,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                           value;
   std::vector<Value> *              record;
   enum CompOp                       comp;
+  enum AggType                      agg_t;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
@@ -130,6 +131,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
+%token <agg_t>  AGG
 %token <dates>  DATE
 //非终结符
 
@@ -514,6 +516,20 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
+    }
+    | AGG '*' RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = "";
+      $$->attribute_name = "*";
+      if ($1 != AGG_COUNT) {
+        LOG_ERROR("Aggregation * only support count(*).");
+        return -1;
+      }
+      $$->agg_type = AGG_WCOUNT;  // 通配符版本的count
+    }
+    | AGG rel_attr RBRACE {
+      $$ = $2;
+      $$->agg_type = $1;
     }
     ;
 

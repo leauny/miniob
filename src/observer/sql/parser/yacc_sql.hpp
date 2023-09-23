@@ -102,8 +102,9 @@ extern int yydebug;
     FLOAT = 303,                   /* FLOAT  */
     ID = 304,                      /* ID  */
     SSS = 305,                     /* SSS  */
-    DATE = 306,                    /* DATE  */
-    UMINUS = 307                   /* UMINUS  */
+    AGG = 306,                     /* AGG  */
+    DATE = 307,                    /* DATE  */
+    UMINUS = 308                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -119,6 +120,7 @@ union YYSTYPE
   Value *                           value;
   std::vector<Value> *              record;
   enum CompOp                       comp;
+  enum AggType                      agg_t;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
@@ -134,7 +136,7 @@ union YYSTYPE
   float                             floats;
   date                              dates;
 
-#line 138 "yacc_sql.hpp"
+#line 140 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

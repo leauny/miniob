@@ -65,15 +65,33 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;
+  bool has_aggregation = false;
+  bool has_attributes = false;
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
 
+    if (relation_attr.agg_type != AGG_NONE) {
+      has_aggregation = true;
+    } else {
+      has_attributes = true;
+    }
+    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
+
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
-      for (Table *table : tables) {
-        wildcard_fields(table, query_fields);
+      // bison通配符聚合函数默认表名为空，attr为*
+      if (relation_attr.agg_type != AGG_NONE) {
+        if (relation_attr.agg_type != AGG_WCOUNT) {
+          return RC::SCHEMA_WRONG_AGG;
+        }
+        Table *table = tables[0];
+        const FieldMeta *field_meta = table->table_meta().field(0);
+        query_fields.push_back(Field(table, field_meta, relation_attr.agg_type));
+      } else {
+          for (Table *table : tables) {
+            wildcard_fields(table, query_fields);
+          }
       }
-
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
       const char *table_name = relation_attr.relation_name.c_str();
       const char *field_name = relation_attr.attribute_name.c_str();
@@ -103,7 +121,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta));
+          query_fields.push_back(Field(table, field_meta, relation_attr.agg_type));
         }
       }
     } else {
@@ -119,7 +137,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::SCHEMA_FIELD_MISSING;
       }
 
-      query_fields.push_back(Field(table, field_meta));
+      query_fields.push_back(Field(table, field_meta, relation_attr.agg_type));
     }
   }
 

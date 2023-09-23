@@ -71,9 +71,9 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
 
       for (const Field &field : select_stmt->query_fields()) {
         if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name());
+          schema.append_cell(field.table_name(), field.field_name(), field.agg_type());
         } else {
-          schema.append_cell(field.field_name());
+          schema.append_cell(nullptr, field.field_name(), field.agg_type());
         }
       }
     } break;

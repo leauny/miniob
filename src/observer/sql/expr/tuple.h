@@ -55,13 +55,13 @@ public:
   {
     cells_.push_back(cell);
   }
-  void append_cell(const char *table, const char *field)
+  void append_cell(const char *table, const char *field, AggType type = AGG_NONE)
   {
-    append_cell(TupleCellSpec(table, field));
+    append_cell(TupleCellSpec(table, field, nullptr, type));
   }
-  void append_cell(const char *alias)
+  void append_cell(const char *alias, AggType type = AGG_NONE)
   {
-    append_cell(TupleCellSpec(alias));
+    append_cell(TupleCellSpec(alias, type));
   }
   int cell_num() const
   {
@@ -224,6 +224,40 @@ private:
   std::vector<FieldExpr *> speces_;
 };
 
+class AggregationTuple : public Tuple
+{
+public:
+  AggregationTuple() = default;
+
+  RC cell_at(int index, Value &cell) const override
+  {
+    if (index < 0 || index >= static_cast<int>(values_.size())) {
+      return RC::INTERNAL;
+    }
+
+    cell = values_[index];
+    return RC::SUCCESS;
+  }
+
+  int cell_num() const override { return values_.size(); }
+
+  Value &get_value(int index)
+  {
+    ASSERT((index < 0 || index >= static_cast<int>(values_.size())), "index out of range.");
+    return values_[index];
+  }
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
+    // 无用
+    return RC::UNIMPLENMENT;
+  }
+
+  void set_size(int size) { values_.resize(size); }
+
+private:
+  std::vector<Value> values_;
+};
+
 /**
  * @brief 从一行数据中，选择部分字段组成的元组，也就是投影操作
  * @ingroup Tuple
@@ -273,6 +307,13 @@ public:
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     return tuple_->find_cell(spec, cell);
+  }
+
+  AggType agg_type_at(int index) {
+    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+      return AGG_NONE;
+    }
+    return speces_[index]->agg_type();
   }
 
 #if 0

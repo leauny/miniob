@@ -145,6 +145,11 @@ EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
                                             yylval->string = strdup(yytext);
                                             RETURN_TOKEN(ID);
                                         }
+MIN\(                                   { yylval->agg_t = AGG_MIN; RETURN_TOKEN(AGG); }
+MAX\(                                   { yylval->agg_t = AGG_MAX; RETURN_TOKEN(AGG); }
+AVG\(                                   { yylval->agg_t = AGG_AVG; RETURN_TOKEN(AGG); }
+SUM\(                                   { yylval->agg_t = AGG_SUM; RETURN_TOKEN(AGG); }
+COUNT\(                                 { yylval->agg_t = AGG_COUNT; RETURN_TOKEN(AGG); }
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 
