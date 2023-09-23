@@ -118,9 +118,9 @@ RC ProjectPhysicalOperator::do_aggregation() {
       continue;
     }
     if (agg_tuple_->get_value(i).attr_type() == FLOATS) {
-      agg_tuple_->get_value(i).set_float(agg_tuple_->get_value(i).get_float() / (float )count);
+      agg_tuple_->get_value(i).set_float(agg_tuple_->get_value(i).get_float() / (float)count);
     } else if (agg_tuple_->get_value(i).attr_type() == INTS) {
-      agg_tuple_->get_value(i).set_int(agg_tuple_->get_value(i).get_int() / count);
+      agg_tuple_->get_value(i).set_float((float)agg_tuple_->get_value(i).get_int() / (float)count);
     } else {
       return RC::INTERNAL;
     }
@@ -207,8 +207,8 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
        // 不支持boolean
        if (ans.attr_type() == UNDEFINED) {
         ans.set_type(val.attr_type());
-        if (val.attr_type() == INTS) { ans.set_int(0); }
-        else if (val.attr_type() == FLOATS) { ans.set_float(0); }
+        if (val.attr_type() == INTS) { ans.set_int(val.get_int()); }
+        else if (val.attr_type() == FLOATS) { ans.set_float(val.get_float()); }
         else { return RC::INTERNAL; }
        } else {
         if (val.attr_type() == INTS) { ans.set_int(ans.get_int() + val.get_int()); }
