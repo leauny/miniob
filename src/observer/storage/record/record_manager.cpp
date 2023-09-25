@@ -82,7 +82,7 @@ RecordPageHandler::~RecordPageHandler() { cleanup(); }
 RC RecordPageHandler::init(DiskBufferPool &buffer_pool, PageNum page_num, bool readonly)
 {
   if (disk_buffer_pool_ != nullptr) {
-    LOG_WARN("Disk buffer pool has been opened for page_num %d.", page_num);
+    LOG_WARN("Disk buffer pool has been opened for page_num %d.", get_page_num());
     return RC::RECORD_OPENNED;
   }
 

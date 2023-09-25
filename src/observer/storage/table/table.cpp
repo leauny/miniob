@@ -135,17 +135,29 @@ RC Table::drop(const char *name) {
   LOG_INFO("Begin to drop table %s:%s", base_dir_.c_str(), name);
   std::string table_file_path = table_meta_file(base_dir_.c_str(), name);
   if (std::remove(table_file_path.c_str()) == 0) {
-    LOG_INFO("drop table meta file %s:%s success", base_dir_.c_str(), name);
+    LOG_INFO("drop table meta file %s success", table_file_path.c_str());
   } else {
-    LOG_WARN("drop table meta file %s:%s failed!", base_dir_.c_str(), name);
+    LOG_WARN("drop table meta file %s failed!", table_file_path.c_str());
     return RC::IOERR_ACCESS;
   }
   std::string data_file_path = table_data_file(base_dir_.c_str(), name);
   if (std::remove(data_file_path.c_str()) == 0) {
-    LOG_INFO("drop table data file %s:%s success", base_dir_.c_str(), name);
+    LOG_INFO("drop table data file %ssuccess", data_file_path.c_str());
   } else {
-    LOG_WARN("drop table data file %s:%s failed!", base_dir_.c_str(), name);
+    LOG_WARN("drop table data file %s failed!", data_file_path.c_str());
     return RC::IOERR_ACCESS;
+  }
+  const int index_num = table_meta_.index_num();
+  for (int i = 0; i < index_num; i++) {  // 清理所有的索引相关文件数据与索引元数据
+    ((BplusTreeIndex*)indexes_[i])->close();
+    const IndexMeta* index_meta = table_meta_.index(i);
+    std::string index_file = table_index_file(base_dir_.c_str(), name, index_meta->name());
+    if(std::remove(index_file.c_str()) == 0) {
+      LOG_INFO("drop table index file %s success", index_file.c_str());
+    } else {
+      LOG_ERROR("drop table index file %s failed!", index_file.c_str());
+      return RC::IOERR_ACCESS;
+    }
   }
   return RC::SUCCESS;
 }
@@ -470,6 +482,11 @@ RC Table::delete_record(const Record &record)
   }
   rc = record_handler_->delete_record(&record.rid());
   return rc;
+}
+
+RC Table::update_record(Record &record)
+{
+
 }
 
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid)

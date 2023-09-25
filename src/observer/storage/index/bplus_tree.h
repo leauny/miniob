@@ -75,6 +75,11 @@ public:
       case CHARS: {
         return common::compare_string((void *)v1, attr_length_, (void *)v2, attr_length_);
       }
+      case DATES: {
+        date d1 = Value::string_to_date(v1, strlen(v1));
+        date d2 = Value::string_to_date(v2, strlen(v2));
+        return common::compare_date((void *)&d1, (void *)&d2);
+      }
       default: {
         ASSERT(false, "unknown attr type. %d", attr_type_);
         return 0;

@@ -331,7 +331,7 @@ date Value::get_date() const {
   return this->date_value_;
 }
 
-std::string Value::date_to_string(date val) const
+std::string Value::date_to_string(date val)
 {
   int yearValue = static_cast<int>(val.year());
   int monthValue = static_cast<unsigned>(val.month());
@@ -341,7 +341,7 @@ std::string Value::date_to_string(date val) const
   return ss.str();
 }
 
-date Value::string_to_date(char * data, int length)
+date Value::string_to_date(const char * data, int length)
 {
   char * tmp = common::substr(data, 0, length - 1);
   std::istringstream iss(tmp);
