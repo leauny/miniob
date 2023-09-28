@@ -66,7 +66,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         auto dates = value[i].get_date();
         if (!dates.ok()) {
           LOG_WARN("date is invalid, table=%s, value_type=%d",table_name, value_type);
-          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          return RC::VARIABLE_NOT_VALID;
         }
       }
     }

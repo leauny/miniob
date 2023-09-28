@@ -484,9 +484,10 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(Record &record)
+RC Table::update_record(Value value, int value_offset, Record &record)
 {
-
+  memcpy(record.data() + value_offset, value.data(), value.length());
+  return RC::SUCCESS;
 }
 
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid)

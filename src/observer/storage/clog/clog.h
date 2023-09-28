@@ -55,7 +55,8 @@ class Db;
   DEFINE_CLOG_TYPE(MTR_COMMIT)        \
   DEFINE_CLOG_TYPE(MTR_ROLLBACK)      \
   DEFINE_CLOG_TYPE(INSERT)            \
-  DEFINE_CLOG_TYPE(DELETE)
+  DEFINE_CLOG_TYPE(DELETE)            \
+  DEFINE_CLOG_TYPE(UPDATE)
 
 enum class CLogType 
 { 
