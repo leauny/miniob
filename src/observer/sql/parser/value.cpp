@@ -124,7 +124,7 @@ void Value::set_date(std::chrono::year_month_day val)
 {
   attr_type_ = DATES;
   date_value_ = val;
-  length_ = date_to_string(date_value_).size();
+  length_ = strlen(date_to_string(date_value_));
 }
 void Value::set_value(const Value &value)
 {
@@ -157,8 +157,8 @@ const char *Value::data() const
       return str_value_.c_str();
     } break;
     case DATES: {
-      return date_to_string(date_value_).c_str();
-    }
+      return date_to_string(date_value_);
+    } break;
     default: {
       return (const char *)&num_value_;
     } break;
@@ -180,7 +180,7 @@ std::string Value::to_string() const
     } break;
     case DATES: {
       os << date_to_string(date_value_);
-    }
+    } break;
     case CHARS: {
       os << str_value_;
     } break;
@@ -209,10 +209,10 @@ int Value::compare(const Value &other) const
       } break;
       case DATES: {
         return common::compare_date((void *)&this->date_value_, (void *)&other.date_value_);
-      }
+      } break;
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
-      }
+      } break;
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }
@@ -320,6 +320,8 @@ bool Value::get_boolean() const
     case BOOLEANS: {
       return num_value_.bool_value_;
     } break;
+    case DATES:
+      return date_value_ != date(std::chrono::year(0), std::chrono::month(0), std::chrono::day(0));
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);
       return false;
@@ -331,14 +333,21 @@ date Value::get_date() const {
   return this->date_value_;
 }
 
-std::string Value::date_to_string(date val)
+const char* Value::date_to_string(date val)
 {
   int yearValue = static_cast<int>(val.year());
   int monthValue = static_cast<unsigned>(val.month());
   int dayValue = static_cast<unsigned>(val.day());
   std::stringstream ss;
   ss << yearValue << "-" << std::setw(2) << std::setfill('0') << monthValue << "-" << std::setw(2) << std::setfill('0') << dayValue;
-  return ss.str();
+
+  std::string date_string = ss.str();
+
+  // 分配动态内存来存储字符串，并复制字符串内容
+  char* result = new char[date_string.length() + 1];
+  strcpy(result, date_string.c_str());
+
+  return result;
 }
 
 date Value::string_to_date(const char * data, int length)
@@ -358,3 +367,4 @@ date Value::string_to_date(const char * data, int length)
   std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
   return ymd;
 }
+

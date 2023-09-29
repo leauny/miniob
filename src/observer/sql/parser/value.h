@@ -99,7 +99,7 @@ public:
   std::string get_string() const;
   bool get_boolean() const;
   date get_date() const;
-  static std::string date_to_string(date val);
+  static const char* date_to_string(date val);
   static date string_to_date(const char * data, int length);
 
 
