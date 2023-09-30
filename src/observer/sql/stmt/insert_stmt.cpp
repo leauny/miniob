@@ -61,18 +61,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       const AttrType   value_type = value[i].attr_type();
       if (field_type != value_type) {
         if (field_type == CHARS) {
-          const char *data;
-          switch (value_type)
-          {
-            case INTS:{
-              int v = *(int *) value[i].data();
-              data = std::to_string(v).c_str();
-            } break;
-            case FLOATS:{
-              float v = *(float *) value[i].data();
-              data = std::to_string(v).c_str();
-            } break;
-          }
+          const char* data = value[i].get_string().c_str();
           mutable_value[i].set_string(data, strlen(data));
         } else if (field_type == INTS) {
           int data;
