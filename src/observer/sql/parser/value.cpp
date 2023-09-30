@@ -242,10 +242,22 @@ int Value::compare(const Value &other) const
     }
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
-    int this_data = std::stoi(this->str_value_);
+    int this_data;
+    std::string v = this->str_value_;
+    if(!('0' <= v[0] && v[0] <= '9')) {
+      this_data = 0;
+    } else {
+      this_data = std::stoi(v);
+    }
     return common::compare_int((void *)&this_data, (void *)&other.num_value_.int_value_);
   } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
-    int other_data = std::stoi(other.str_value_);
+    int other_data;
+    std::string v = other.str_value_;
+    if(!('0' <= v[0] && v[0] <= '9')) {
+      other_data = 0;
+    } else {
+      other_data = std::stoi(v);
+    }
     return common::compare_int((void *)&this->num_value_.int_value_, (void *)&other_data);
   }
   LOG_WARN("not supported");
