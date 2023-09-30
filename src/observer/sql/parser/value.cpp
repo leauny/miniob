@@ -242,15 +242,15 @@ int Value::compare(const Value &other) const
     }
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
-    int this_data;
+    float this_data;
     std::string v = this->str_value_;
     if(!('0' <= v[0] && v[0] <= '9')) {
       this_data = 0;
     } else {
-      this_data = std::stoi(v);
+      this_data = std::stof(v);
     }
     float other_data = other.num_value_.int_value_;
-    return common::compare_int((void *)&this_data, (void *)&other_data);
+    return common::compare_float((void *)&this_data, (void *)&other_data);
   } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
     float this_data = this->num_value_.int_value_;
     float other_data;
