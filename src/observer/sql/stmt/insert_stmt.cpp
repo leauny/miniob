@@ -12,6 +12,9 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
+#include <cmath>
+#include <string>
+#include <sstream>
 #include "sql/stmt/insert_stmt.h"
 #include "common/log/log.h"
 #include "storage/db/db.h"
@@ -51,14 +54,68 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
 
     // check fields type
     const int sys_field_num = table_meta.sys_field_num();
+    std::vector<Value> &mutable_value = const_cast<std::vector<Value> &>(value);
     for (int i = 0; i < value_num; i++) {
       const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
       const AttrType   field_type = field_meta->type();
       const AttrType   value_type = value[i].attr_type();
-      if (field_type != value_type) {  // TODO try to convert the value type to field type
-        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+      if (field_type != value_type) {
+        if (field_type == CHARS) {
+          const char *data;
+          switch (value_type)
+          {
+            case INTS:{
+              int v = *(int *) value[i].data();
+              data = std::to_string(v).c_str();
+            } break;
+            case FLOATS:{
+              float v = *(float *) value[i].data();
+              data = std::to_string(v).c_str();
+            } break;
+          }
+          mutable_value[i].set_string(data, strlen(data));
+        } else if (field_type == INTS) {
+          int data;
+          switch (value_type)
+          {
+            case CHARS:{
+              std::string v = (char *)value[i].data();
+              if(!('0' <= v[0] && v[0] <= '9')) {
+                data = 0;
+              } else {
+                data = std::stoi(v);
+              }
+            }  break;
+            case FLOATS:{
+              float v = *(float *) value[i].data();
+              data = (int) std::round(v);
+            }  break;
+          }
+          mutable_value[i].set_int(data);
+        } else if (field_type == FLOATS) {
+          float data;
+          switch (value_type)
+          {
+            case CHARS:{
+              std::string v = (char *)value[i].data();
+              if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+                data = 0;
+              } else {
+                data = std::stof(v);
+              }
+            }  break;
+            case INTS:{
+              int v = *(int *) value[i].data();
+              data = (float) v;
+            }  break;  
+          }
+          mutable_value[i].set_float(data);
+        } 
+        else {
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
       }
 
       // check the date valid

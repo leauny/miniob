@@ -223,6 +223,30 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+    float this_data;
+    std::string v = this->str_value_;
+    if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+      this_data = 0;
+    } else {
+      this_data = std::stof(v);
+    }
+    return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
+  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+    float other_data;
+    std::string v = other.str_value_;
+    if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+      other_data = 0;
+    } else {
+      other_data = std::stof(v);
+    }
+    return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+    int this_data = std::stoi(this->str_value_);
+    return common::compare_int((void *)&this_data, (void *)&other.num_value_.int_value_);
+  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+    int other_data = std::stoi(other.str_value_);
+    return common::compare_int((void *)&this->num_value_.int_value_, (void *)&other_data);
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
