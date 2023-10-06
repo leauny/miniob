@@ -176,7 +176,6 @@ RC MvccTrx::delete_record(Table * table, Record &record)
   }
   
   end_field.set_int(record, -trx_id_);
-  // TODO not complete the table->delete_record()
   RC rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
   ASSERT(rc == RC::SUCCESS, "failed to append delete record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
@@ -193,7 +192,7 @@ RC MvccTrx::update_record(Table *table, Value value, int value_offset, Record &r
   trx_fields(table, begin_field, end_field);
 
   [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
-  /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
+  /// 在更新之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
   ASSERT(end_xid > 0, "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
       end_xid, trx_id_, record.rid().to_string().c_str());
   if (end_xid != trx_kit_.max_trx_id()) {
@@ -209,7 +208,7 @@ RC MvccTrx::update_record(Table *table, Value value, int value_offset, Record &r
     return rc;
   }
 
-  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
+  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(), 0, record.data());
   ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
 
@@ -419,7 +418,8 @@ RC find_table(Db *db, const CLogRecord &log_record, Table *&table)
 {
   switch (clog_type_from_integer(log_record.header().type_)) {
     case CLogType::INSERT:
-    case CLogType::DELETE: {
+    case CLogType::DELETE:
+    case CLogType::UPDATE: {
       const CLogRecordData &data_record = log_record.data_record();
       table = db->find_table(data_record.table_id_);
       if (nullptr == table) {
@@ -479,6 +479,10 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
       
       operations_.insert(Operation(Operation::Type::DELETE, table, data_record.rid_));
     } break;
+
+    case CLogType::UPDATE: {
+
+    }
 
     case CLogType::MTR_COMMIT: {
       const CLogRecordCommitData &commit_record = log_record.commit_record();

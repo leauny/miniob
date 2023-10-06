@@ -115,28 +115,29 @@ union YYSTYPE
 {
 #line 107 "yacc_sql.y"
 
-  ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition;
-  Value *                           value;
-  std::vector<Value> *              record;
-  enum CompOp                       comp;
-  enum AggType                      agg_t;
-  RelAttrSqlNode *                  rel_attr;
-  std::vector<AttrInfoSqlNode> *    attr_infos;
-  AttrInfoSqlNode *                 attr_info;
-  Expression *                      expression;
-  std::vector<Expression *> *       expression_list;
-  std::vector<Value> *              value_list;
-  std::vector<std::vector<Value>> * record_list;
-  std::vector<ConditionSqlNode> *   condition_list;
-  std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
-  char *                            string;
-  int                               number;
-  float                             floats;
-  date                              dates;
+  ParsedSqlNode *                               sql_node;
+  ConditionSqlNode *                            condition;
+  Value *                                       value;
+  std::vector<Value> *                          record;
+  enum CompOp                                   comp;
+  enum AggType                                  agg_t;
+  RelAttrSqlNode *                              rel_attr;
+  std::vector<AttrInfoSqlNode> *                attr_infos;
+  AttrInfoSqlNode *                             attr_info;
+  Expression *                                  expression;
+  std::vector<Expression *> *                   expression_list;
+  std::vector<Value> *                          value_list;
+  std::vector<std::vector<Value>> *             record_list;
+  std::vector<ConditionSqlNode> *               condition_list;
+  std::vector<RelAttrSqlNode> *                 rel_attr_list;
+  std::vector<std::string> *                    relation_list;
+  std::vector<std::pair<std::string, Value>> *  update_list;
+  char *                                        string;
+  int                                           number;
+  float                                         floats;
+  date                                          dates;
 
-#line 140 "yacc_sql.hpp"
+#line 141 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

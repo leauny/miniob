@@ -105,26 +105,27 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
-  ParsedSqlNode *                   sql_node;
-  ConditionSqlNode *                condition;
-  Value *                           value;
-  std::vector<Value> *              record;
-  enum CompOp                       comp;
-  enum AggType                      agg_t;
-  RelAttrSqlNode *                  rel_attr;
-  std::vector<AttrInfoSqlNode> *    attr_infos;
-  AttrInfoSqlNode *                 attr_info;
-  Expression *                      expression;
-  std::vector<Expression *> *       expression_list;
-  std::vector<Value> *              value_list;
-  std::vector<std::vector<Value>> * record_list;
-  std::vector<ConditionSqlNode> *   condition_list;
-  std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
-  char *                            string;
-  int                               number;
-  float                             floats;
-  date                              dates;
+  ParsedSqlNode *                               sql_node;
+  ConditionSqlNode *                            condition;
+  Value *                                       value;
+  std::vector<Value> *                          record;
+  enum CompOp                                   comp;
+  enum AggType                                  agg_t;
+  RelAttrSqlNode *                              rel_attr;
+  std::vector<AttrInfoSqlNode> *                attr_infos;
+  AttrInfoSqlNode *                             attr_info;
+  Expression *                                  expression;
+  std::vector<Expression *> *                   expression_list;
+  std::vector<Value> *                          value_list;
+  std::vector<std::vector<Value>> *             record_list;
+  std::vector<ConditionSqlNode> *               condition_list;
+  std::vector<RelAttrSqlNode> *                 rel_attr_list;
+  std::vector<std::string> *                    relation_list;
+  std::vector<std::pair<std::string, Value>> *  update_list;
+  char *                                        string;
+  int                                           number;
+  float                                         floats;
+  date                                          dates;
 }
 
 %token <number> NUMBER
@@ -152,6 +153,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
+%type <update_list>         update_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -445,20 +447,36 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET update_list where
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.update_fields.swap(*$4);
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
       free($2);
-      free($4);
     }
     ;
+update_list:
+    ID EQ value {
+      $$ = new std::vector<std::pair<std::string, Value>>;
+      std::string tmp = $1;
+      $$->push_back(std::make_pair(tmp, *$3));
+    }
+    | update_list COMMA ID EQ value
+    {
+      if ($1 != nullptr) {
+        $$ = $1;
+      } else {
+        $$ = new std::vector<std::pair<std::string, Value>>;
+      }
+      std::string tmp = $3;
+      $$->push_back(std::make_pair(tmp, *$5));
+    }
+    ;
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM ID rel_list where
     {
