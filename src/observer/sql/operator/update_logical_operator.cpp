@@ -4,5 +4,5 @@
 
 #include "sql/operator/update_logical_operator.h"
 
-UpdateLogicalOperator::UpdateLogicalOperator(Table *table, Value value, int value_offset)
-    : table_(table), value_(value), value_offset_(value_offset) {}
+UpdateLogicalOperator::UpdateLogicalOperator(Table *table, const std::vector<std::pair<Value, int>>& valueAndOffsets)
+    : table_(table), values_and_offsets_(valueAndOffsets) {}

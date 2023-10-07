@@ -12,7 +12,7 @@
 class UpdateLogicalOperator : public LogicalOperator
 {
 public:
-  UpdateLogicalOperator(Table *table, Value value, int value_offset);
+  UpdateLogicalOperator(Table *table, const std::vector<std::pair<Value, int>>& valueAndOffsets);
   virtual ~UpdateLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -23,17 +23,12 @@ public:
   {
     return table_;
   }
-  Value value() const
-  {
-    return value_;
-  }
-  int value_offset()
-  {
-    return value_offset_;
+
+  auto values_and_offsets() const {
+    return values_and_offsets_;
   }
 private:
   Table *table_ = nullptr;
-  Value value_;
-  int value_offset_ = 0;
+  std::vector<std::pair<Value, int>> values_and_offsets_;
 };
 

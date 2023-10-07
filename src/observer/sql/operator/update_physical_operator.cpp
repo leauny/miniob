@@ -40,7 +40,7 @@ RC UpdatePhysicalOperator::next()
 
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &record = row_tuple->record();
-    rc = trx_->update_record(table_, value_, value_offset_, record);
+    rc = trx_->update_record(table_, values_and_offsets_, record);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to Update record: %s", strrc(rc));
       return rc;

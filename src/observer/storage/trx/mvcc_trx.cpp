@@ -185,7 +185,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
   return RC::SUCCESS;
 }
 
-RC MvccTrx::update_record(Table *table, Value value, int value_offset, Record &record)
+RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
 {
   Field begin_field;
   Field end_field;
@@ -202,7 +202,7 @@ RC MvccTrx::update_record(Table *table, Value value, int value_offset, Record &r
 
   end_field.set_int(record, -trx_id_);
 
-  RC rc = table->update_record(value, value_offset, record);
+  RC rc = table->update_record(values_and_offsets, record);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to update record into table. rc=%s", strrc(rc));
     return rc;
