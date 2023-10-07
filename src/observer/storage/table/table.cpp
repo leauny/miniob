@@ -487,7 +487,7 @@ RC Table::delete_record(const Record &record)
 RC Table::update_record(const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
 {
   for (auto& [value, offset] : values_and_offsets) {
-    memcpy(record.data() + offset, value.data(), value.length());
+    memcpy(record.data() + offset, value.data(), value.length() + 1);
   }
   return RC::SUCCESS;
 }

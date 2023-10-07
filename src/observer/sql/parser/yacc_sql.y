@@ -156,6 +156,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <update_list>         update_list
 %type <expression>          expression
 %type <expression_list>     expression_list
+%type <record_list>         subquery
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -475,8 +476,33 @@ update_list:
       std::string tmp = $3;
       $$->push_back(std::make_pair(tmp, *$5));
     }
+    | ID EQ subquery {
+      $$ = new std::vector<std::pair<std::string, Value>>;
+      std::string tmp = $1;
+      Value value = (*$3)[0][0];
+      $$->push_back(std::make_pair(tmp, value));
+    }
+    | update_list COMMA ID EQ subquery
+    {
+      if ($1 != nullptr) {
+        $$ = $1;
+      } else {
+        $$ = new std::vector<std::pair<std::string, Value>>;
+      }
+      std::string tmp = $3;
+      Value value = (*$5)[0][0];
+      $$->push_back(std::make_pair(tmp, value));
+    }
     ;
 
+subquery:
+    LBRACE select_stmt RBRACE {
+      std::vector<std::vector<Value>> values = $2->selection.query_values;
+      if (values.size() == 1) {
+        $$ = &values;
+      }
+    }
+    ;
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM ID rel_list where
     {

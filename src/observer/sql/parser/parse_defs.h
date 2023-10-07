@@ -107,6 +107,7 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<std::vector<Value>> query_values; ///< 子查询的结果
 };
 
 /**
@@ -149,8 +150,7 @@ struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
   std::vector<std::pair<std::string, Value>> update_fields; // 存储要更新的字段和值
-//  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-//  Value                         value;                 ///< 更新的值，仅支持一个字段
+  bool
   std::vector<ConditionSqlNode> conditions;
 };
 
