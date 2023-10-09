@@ -143,10 +143,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     for (auto& field : update.parser_update_fields) {
       if (field.is_subquery) {
         auto sub_query_event = new SQLStageEvent(sql_event->session_event(), field.subquery);
-        if (OB_FAIL(handle_sql(sub_query_event))) {
-          LOG_TRACE("failed to do subquery. rc=%s", strrc(rc));
-          return rc;
-        }
+        handle_sql(sub_query_event);
         field.value = sub_query_event->sql_node()->selection.query_values[0][0];
       }
       update.update_fields.emplace_back(field.field_name, field.value);
