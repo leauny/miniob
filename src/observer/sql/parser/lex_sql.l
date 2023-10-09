@@ -162,6 +162,10 @@ COUNT\(                                 { yylval->agg_t = AGG_COUNT; RETURN_TOKE
 "-" |
 "*" |
 "/"                                     { return yytext[0]; }
+\([Ss][Ee][Ll][Ee][Cc][Tt].*?\)          {
+                                            yylval->string = strdup(yytext);
+                                            RETURN_TOKEN(SUBQUERY);
+                                        }
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 

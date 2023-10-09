@@ -103,6 +103,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         GE
         NE
 
+
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
   ParsedSqlNode *                               sql_node;
@@ -121,7 +122,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *               condition_list;
   std::vector<RelAttrSqlNode> *                 rel_attr_list;
   std::vector<std::string> *                    relation_list;
-  std::vector<std::pair<std::string, Value>> *  update_list;
+  std::vector<UpdateField> *                    update_list;
   char *                                        string;
   int                                           number;
   float                                         floats;
@@ -134,9 +135,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> SSS
 %token <agg_t>  AGG
 %token <dates>  DATE
+%token <string> SUBQUERY
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
+%type <string>              subquery
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
@@ -156,7 +159,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <update_list>         update_list
 %type <expression>          expression
 %type <expression_list>     expression_list
-%type <record_list>         subquery
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -452,7 +454,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.update_fields.swap(*$4);
+      $$->update.parser_update_fields.swap(*$4);
       if ($5 != nullptr) {
         $$->update.conditions.swap(*$5);
         delete $5;
@@ -462,45 +464,43 @@ update_stmt:      /*  update 语句的语法解析树*/
     ;
 update_list:
     ID EQ value {
-      $$ = new std::vector<std::pair<std::string, Value>>;
-      std::string tmp = $1;
-      $$->push_back(std::make_pair(tmp, *$3));
+      $$ = new std::vector<UpdateField>;
+      UpdateField field($1, *$3);
+      $$->emplace_back(field);
     }
     | update_list COMMA ID EQ value
     {
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<std::pair<std::string, Value>>;
+        $$ = new std::vector<UpdateField>;
       }
-      std::string tmp = $3;
-      $$->push_back(std::make_pair(tmp, *$5));
+      UpdateField field($3, *$5);
+      $$->emplace_back(field);
     }
     | ID EQ subquery {
-      $$ = new std::vector<std::pair<std::string, Value>>;
-      std::string tmp = $1;
-      Value value = (*$3)[0][0];
-      $$->push_back(std::make_pair(tmp, value));
+      $$ = new std::vector<UpdateField>;
+      std::string tmp($3);
+      std::string sub_query = tmp.substr(1, tmp.length() - 2);
+      UpdateField field($1, sub_query);
+      $$->emplace_back(field);
     }
     | update_list COMMA ID EQ subquery
     {
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<std::pair<std::string, Value>>;
+        $$ = new std::vector<UpdateField>;
       }
-      std::string tmp = $3;
-      Value value = (*$5)[0][0];
-      $$->push_back(std::make_pair(tmp, value));
+      std::string tmp($5);
+      std::string sub_query = tmp.substr(1, tmp.length() - 2);
+      UpdateField field($3, sub_query);
+      $$->emplace_back(field);
     }
     ;
-
 subquery:
-    LBRACE select_stmt RBRACE {
-      std::vector<std::vector<Value>> values = $2->selection.query_values;
-      if (values.size() == 1) {
-        $$ = &values;
-      }
+    SUBQUERY {
+      $$ = $1;
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
