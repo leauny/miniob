@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include <sstream>
 #include <string>
 #include <iomanip>
+#include <regex>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
@@ -189,6 +190,51 @@ std::string Value::to_string() const
     } break;
   }
   return os.str();
+}
+
+bool Value::is_like(const Value &other) const {
+  // 只判断CHARS
+  if (!(this->attr_type_ == other.attr_type_ && this->attr_type_ == CHARS)) { return false; }
+  std::string str = this->str_value_.c_str();
+  std::string old_pattern = other.str_value_.c_str();
+  std::string new_pattern;
+  bool is_escape = false;
+  // 将sql的通配符转换为正则表达式的通配符
+  for (char i : old_pattern) {
+    switch (i) {
+      case '\\': {
+        is_escape = true;
+      } break;
+      case '.': {
+        new_pattern += "\\.";
+      } break;
+      case '*': {
+        new_pattern += "\\*";
+      } break;
+      case '_': {
+        if (is_escape) {
+            new_pattern += '_';
+            is_escape = false;
+        } else {
+            new_pattern += '.';
+        }
+      } break;
+      case '%': {
+        if (is_escape) {
+          new_pattern += '%';
+          is_escape = false;
+        } else {
+          new_pattern += ".*";
+        }
+      } break;
+      default: {
+        new_pattern += i;
+        is_escape = false;
+      }
+    }
+  }
+  std::regex pattern(new_pattern);
+  return std::regex_match(str, pattern);
 }
 
 int Value::compare(const Value &other) const

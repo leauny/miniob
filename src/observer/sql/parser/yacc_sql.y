@@ -102,6 +102,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LE
         GE
         NE
+        LIKE
 
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
@@ -557,7 +558,7 @@ rel_attr:
       free($1);
       free($3);
     }
-    | AGG '*' RBRACE {
+    | AGG LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = "";
       $$->attribute_name = "*";
@@ -567,8 +568,8 @@ rel_attr:
       }
       $$->agg_type = AGG_WCOUNT;  // 通配符版本的count
     }
-    | AGG rel_attr RBRACE {
-      $$ = $2;
+    | AGG LBRACE rel_attr RBRACE {
+      $$ = $3;
       $$->agg_type = $1;
     }
     ;
@@ -688,6 +689,7 @@ comp_op:
     | LE { $$ = LESS_EQUAL; }
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
+    | LIKE { $$ = LIKE_TO; }
     ;
 
 calc_stmt:

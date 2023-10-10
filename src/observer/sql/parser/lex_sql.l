@@ -137,18 +137,16 @@ LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
-{ID}                                    {
-                                            yylval->string = strdup(yytext);
-                                            RETURN_TOKEN(ID);
-                                        }
-MIN\(                                   { yylval->agg_t = AGG_MIN; RETURN_TOKEN(AGG); }
-MAX\(                                   { yylval->agg_t = AGG_MAX; RETURN_TOKEN(AGG); }
-AVG\(                                   { yylval->agg_t = AGG_AVG; RETURN_TOKEN(AGG); }
-SUM\(                                   { yylval->agg_t = AGG_SUM; RETURN_TOKEN(AGG); }
-COUNT\(                                 { yylval->agg_t = AGG_COUNT; RETURN_TOKEN(AGG); }
+
+MIN                                    { yylval->agg_t = AGG_MIN; RETURN_TOKEN(AGG); }
+MAX                                    { yylval->agg_t = AGG_MAX; RETURN_TOKEN(AGG); }
+AVG                                    { yylval->agg_t = AGG_AVG; RETURN_TOKEN(AGG); }
+SUM                                    { yylval->agg_t = AGG_SUM; RETURN_TOKEN(AGG); }
+COUNT                                  { yylval->agg_t = AGG_COUNT; RETURN_TOKEN(AGG); }
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 
+LIKE                                    RETURN_TOKEN(LIKE);
 ","                                     RETURN_TOKEN(COMMA);
 "="                                     RETURN_TOKEN(EQ);
 "<="                                    RETURN_TOKEN(LE);
@@ -164,7 +162,10 @@ COUNT\(                                 { yylval->agg_t = AGG_COUNT; RETURN_TOKE
 "/"                                     { return yytext[0]; }
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
-
+{ID}                                    {
+                                            yylval->string = strdup(yytext);
+                                            RETURN_TOKEN(ID);
+                                        }
 .                                       LOG_DEBUG("Unknown character [%c]",yytext[0]); return yytext[0];
 %%
 
