@@ -157,13 +157,17 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
         }
 
         rc = execute_stage_.handle_request(subquery);
+        if (OB_FAIL(rc)) {
+          LOG_TRACE("failed to do execute. rc=%s", strrc(rc));
+          return rc;
+        }
         if (subquery->sql_node()->selection.query_values.size() != 1 || subquery->sql_node()->selection.query_values[0].size() != 1) {
           LOG_TRACE("subquery result is not a single value");
           return RC::INTERNAL;
         }
         field.value = subquery->sql_node()->selection.query_values[0][0];
       }
-      update.update_fields.emplace_back(field.field_name, field.value);
+      update.update_fields.push_back({field.field_name, field.value});
     }
   }
 

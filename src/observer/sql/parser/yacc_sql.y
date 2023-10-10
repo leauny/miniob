@@ -496,6 +496,7 @@ update_list:
 subquery:
     LBRACE select_stmt RBRACE {
       $$ = $2;
+      $$->selection.is_subquery = true;
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/

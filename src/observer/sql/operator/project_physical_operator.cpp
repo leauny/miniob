@@ -58,6 +58,9 @@ RC ProjectPhysicalOperator::close()
   if (!children_.empty()) {
     children_[0]->close();
   }
+  if (agg_tuple_) {
+    delete agg_tuple_;
+  }
   return RC::SUCCESS;
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
