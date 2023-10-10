@@ -59,5 +59,6 @@ private:
   Tuple *current_tuple_norm();  // 用于在do_aggregation内调用
 
   ProjectTuple tuple_;
+  bool has_agg_ = false;
   AggregationTuple *agg_tuple_ = nullptr;
 };
