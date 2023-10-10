@@ -96,5 +96,32 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   SqlResult *sql_result = sql_event->session_event()->sql_result();
   sql_result->set_tuple_schema(schema);
   sql_result->set_operator(std::move(physical_operator));
+
+  if (stmt->type() == StmtType::SELECT && sql_event->sql_node()->selection.is_subquery) {
+    rc = sql_result->open();
+    if (OB_FAIL(rc)) {
+      sql_result->close();
+      sql_result->set_return_code(rc);
+    }
+    Tuple *tuple = nullptr;
+    while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
+      int cell_num = tuple->cell_num();
+      std::vector<Value> values;
+      for (int i = 0; i < cell_num; i++) {
+        Value value;
+        rc = tuple->cell_at(i, value);
+        if (rc != RC::SUCCESS) {
+          sql_result->close();
+          return rc;
+        }
+        values.push_back(value);
+      }
+      sql_event->sql_node()->selection.query_values.emplace_back(values);
+    }
+    sql_result->close();
+    if (rc == RC::RECORD_EOF) {
+      rc = RC::SUCCESS;
+    }
+  }
   return rc;
 }

@@ -30,6 +30,7 @@ class SQLStageEvent : public common::StageEvent
 {
 public:
   SQLStageEvent(SessionEvent *event, const std::string &sql);
+  explicit SQLStageEvent(SessionEvent *event) : session_event_(event) {}
   virtual ~SQLStageEvent() noexcept;
 
   SessionEvent *session_event() const

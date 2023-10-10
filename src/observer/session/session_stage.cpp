@@ -101,11 +101,13 @@ void SessionStage::handle_request(StageEvent *event)
   Session::set_current_session(sev->session());
   sev->session()->set_current_request(sev);
   SQLStageEvent sql_event(sev, sql);
-  (void)handle_sql(&sql_event);
+  RC rc = handle_sql(&sql_event);
+
+  sev->sql_result()->set_return_code(rc);
 
   Communicator *communicator = sev->get_communicator();
   bool need_disconnect = false;
-  RC rc = communicator->write_result(sev, need_disconnect);
+  rc = communicator->write_result(sev, need_disconnect);
   LOG_INFO("write result return %s", strrc(rc));
   if (need_disconnect) {
     Server::close_connection(communicator);
@@ -136,6 +138,44 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do parse. rc=%s", strrc(rc));
     return rc;
+  }
+
+  if (sql_event->sql_node()->flag == SCF_UPDATE) {
+    UpdateSqlNode& update = sql_event->sql_node()->update;
+    for (auto& field : update.parser_update_fields) {
+      if (field.is_subquery) {
+        auto subquery = new SQLStageEvent(sql_event->session_event());
+        subquery->set_sql_node(std::unique_ptr<ParsedSqlNode>(field.subquery));
+        SqlResult *sql_result = subquery->session_event()->sql_result();
+        rc = resolve_stage_.handle_request(subquery);
+        if (OB_FAIL(rc)) {
+          LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+          sql_result->set_return_code(rc);
+          return rc;
+        }
+
+        rc = optimize_stage_.handle_request(subquery);
+        if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
+          LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
+          sql_result->set_return_code(rc);
+          return rc;
+        }
+
+        rc = execute_stage_.handle_request(subquery);
+        if (OB_FAIL(rc)) {
+          LOG_TRACE("failed to do execute. rc=%s", strrc(rc));
+          sql_result->set_return_code(rc);
+          return rc;
+        }
+        if (subquery->sql_node()->selection.query_values.size() != 1 || subquery->sql_node()->selection.query_values[0].size() != 1) {
+          LOG_TRACE("subquery result is not a single value");
+          sql_result->set_return_code(RC::INTERNAL);
+          return RC::INTERNAL;
+        }
+        field.value = subquery->sql_node()->selection.query_values[0][0];
+      }
+      update.update_fields.push_back({field.field_name, field.value});
+    }
   }
 
   rc = resolve_stage_.handle_request(sql_event);

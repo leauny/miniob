@@ -18,10 +18,11 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 #include <string>
-
 #include "sql/parser/value.h"
+#include "update_field.h"
 
 class Expression;
+struct UpdateSqlNode;
 
 /**
  * @defgroup SQLParser SQL Parser 
@@ -107,6 +108,8 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<std::vector<Value>> query_values; ///< 子查询的结果
+  bool is_subquery{false}; ///< 是否是子查询
 };
 
 /**
@@ -141,18 +144,7 @@ struct DeleteSqlNode
   std::vector<ConditionSqlNode> conditions;
 };
 
-/**
- * @brief 描述一个update语句
- * @ingroup SQLParser
- */
-struct UpdateSqlNode
-{
-  std::string                   relation_name;         ///< Relation to update
-  std::vector<std::pair<std::string, Value>> update_fields; // 存储要更新的字段和值
-//  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-//  Value                         value;                 ///< 更新的值，仅支持一个字段
-  std::vector<ConditionSqlNode> conditions;
-};
+
 
 /**
  * @brief 描述一个属性
@@ -323,8 +315,25 @@ public:
 
 public:
   ParsedSqlNode();
+  ParsedSqlNode(const ParsedSqlNode& other) {
+    flag = other.flag;
+    error = other.error;
+    calc = other.calc;
+    selection = other.selection;
+    insertion = other.insertion;
+    deletion = other.deletion;
+    update = other.update;
+    create_table = other.create_table;
+    drop_table = other.drop_table;
+    create_index = other.create_index;
+    drop_index = other.drop_index;
+    desc_table = other.desc_table;
+    load_data = other.load_data;
+    set_variable = other.set_variable;
+  }
   explicit ParsedSqlNode(SqlCommandFlag flag);
 };
+
 
 /**
  * @brief 表示语法解析后的数据
