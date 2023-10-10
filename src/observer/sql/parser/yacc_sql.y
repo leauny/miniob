@@ -103,6 +103,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         GE
         NE
         LIKE
+        NOT_LIKE
 
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
@@ -690,6 +691,7 @@ comp_op:
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LIKE_TO; }
+    | NOT_LIKE { $$ = NOT_LIKE_TO; }
     ;
 
 calc_stmt:

@@ -146,6 +146,7 @@ COUNT                                  { yylval->agg_t = AGG_COUNT; RETURN_TOKEN
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 
+"NOT LIKE"                              RETURN_TOKEN(NOT_LIKE);
 LIKE                                    RETURN_TOKEN(LIKE);
 ","                                     RETURN_TOKEN(COMMA);
 "="                                     RETURN_TOKEN(EQ);

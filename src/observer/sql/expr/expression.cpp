@@ -92,6 +92,9 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   int cmp_result = left.compare(right);
   result = false;
   switch (comp_) {
+    case NOT_LIKE_TO:  {
+      result = !(left.is_like(right));
+    } break;
     case LIKE_TO: {
       result = left.is_like(right);
     } break;

@@ -141,6 +141,8 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   int cmp_result = left_value.compare(right_value);
 
   switch (comp_op_) {
+    case NOT_LIKE_TO:
+      return !(left_value.is_like(right_value));
     case LIKE_TO:
       return left_value.is_like(right_value);
     case EQUAL_TO:
