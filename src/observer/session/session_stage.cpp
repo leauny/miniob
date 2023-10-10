@@ -142,9 +142,26 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     UpdateSqlNode& update = sql_event->sql_node()->update;
     for (auto& field : update.parser_update_fields) {
       if (field.is_subquery) {
-        auto sub_query_event = new SQLStageEvent(sql_event->session_event(), field.subquery);
-        handle_sql(sub_query_event);
-        field.value = sub_query_event->sql_node()->selection.query_values[0][0];
+        auto subquery = new SQLStageEvent(sql_event->session_event());
+        subquery->set_sql_node(std::unique_ptr<ParsedSqlNode>(field.subquery));
+        rc = resolve_stage_.handle_request(subquery);
+        if (OB_FAIL(rc)) {
+          LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+          return rc;
+        }
+
+        rc = optimize_stage_.handle_request(subquery);
+        if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
+          LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
+          return rc;
+        }
+
+        rc = execute_stage_.handle_request(subquery);
+        if (subquery->sql_node()->selection.query_values.size() != 1 || subquery->sql_node()->selection.query_values[0].size() != 1) {
+          LOG_TRACE("subquery result is not a single value");
+          return RC::INTERNAL;
+        }
+        field.value = subquery->sql_node()->selection.query_values[0][0];
       }
       update.update_fields.emplace_back(field.field_name, field.value);
     }

@@ -135,11 +135,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <string> SSS
 %token <agg_t>  AGG
 %token <dates>  DATE
-%token <string> SUBQUERY
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
-%type <string>              subquery
+%type <sql_node>            subquery
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
@@ -480,9 +479,7 @@ update_list:
     }
     | ID EQ subquery {
       $$ = new std::vector<UpdateField>;
-      std::string tmp($3);
-      std::string sub_query = tmp.substr(1, tmp.length() - 2);
-      UpdateField field($1, sub_query);
+      UpdateField field($1, $3);
       $$->emplace_back(field);
     }
     | update_list COMMA ID EQ subquery
@@ -492,15 +489,13 @@ update_list:
       } else {
         $$ = new std::vector<UpdateField>;
       }
-      std::string tmp($5);
-      std::string sub_query = tmp.substr(1, tmp.length() - 2);
-      UpdateField field($3, sub_query);
+      UpdateField field($3, $5);
       $$->emplace_back(field);
     }
     ;
 subquery:
-    SUBQUERY {
-      $$ = $1;
+    LBRACE select_stmt RBRACE {
+      $$ = $2;
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
