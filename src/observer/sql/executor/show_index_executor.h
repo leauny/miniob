@@ -38,13 +38,12 @@ public:
     std::vector<Index*> indexes = table->all_indexes();
 
     auto oper = new StringListPhysicalOperator;
-    int seq_no = 0;
     for (const auto &index : indexes) {
       oper->append({
           table->name(),
-          "1",
+          "1",   // TODO: Unimplemented
           index->index_meta().name(),
-          to_string(++seq_no),
+          "1",   // TODO: Unimplemented
           index->index_meta().field()
       });
     }
