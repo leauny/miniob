@@ -110,6 +110,7 @@ private:
   RC init_record_handler(const char *base_dir);
 
 public:
+  const std::vector<Index*>& all_indexes();
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
 

@@ -183,6 +183,16 @@ struct DropTableSqlNode
 };
 
 /**
+ * @brief 描述一个show index语句
+ * @ingroup SQLParser
+ * @details 查询索引时，需要指定表名。
+ */
+struct ShowIndexSqlNode
+{
+  std::string relation_name;   ///< Relation name
+};
+
+/**
  * @brief 描述一个create index语句
  * @ingroup SQLParser
  * @details 创建索引时，需要指定索引名，表名，字段名。
@@ -281,6 +291,7 @@ enum SqlCommandFlag
   SCF_DROP_INDEX,
   SCF_SYNC,
   SCF_SHOW_TABLES,
+  SCF_SHOW_INDEX,
   SCF_DESC_TABLE,
   SCF_BEGIN,        ///< 事务开始语句，可以在这里扩展只读事务
   SCF_COMMIT,
@@ -308,6 +319,7 @@ public:
   UpdateSqlNode             update;
   CreateTableSqlNode        create_table;
   DropTableSqlNode          drop_table;
+  ShowIndexSqlNode          show_index;
   CreateIndexSqlNode        create_index;
   DropIndexSqlNode          drop_index;
   DescTableSqlNode          desc_table;
@@ -327,6 +339,7 @@ public:
     update = other.update;
     create_table = other.create_table;
     drop_table = other.drop_table;
+    show_index = other.show_index;
     create_index = other.create_index;
     drop_index = other.drop_index;
     desc_table = other.desc_table;

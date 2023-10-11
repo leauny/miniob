@@ -168,6 +168,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            create_table_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
+%type <sql_node>            show_index_stmt
 %type <sql_node>            desc_table_stmt
 %type <sql_node>            create_index_stmt
 %type <sql_node>            drop_index_stmt
@@ -205,6 +206,7 @@ command_wrapper:
   | create_table_stmt
   | drop_table_stmt
   | show_tables_stmt
+  | show_index_stmt
   | desc_table_stmt
   | create_index_stmt
   | drop_index_stmt
@@ -264,6 +266,13 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
+    }
+    ;
+
+show_index_stmt:
+    SHOW INDEX FROM ID {
+      $$ = new ParsedSqlNode(SCF_SHOW_INDEX);
+      $$->show_index.relation_name = $4;
     }
     ;
 

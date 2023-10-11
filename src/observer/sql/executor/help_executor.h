@@ -35,6 +35,7 @@ public:
   {
     const char *strings[] = {
         "show tables;",
+        "show index from `table name`;",
         "desc `table name`;",
         "create table `table name` (`column name` `column type`, ...);",
         "create index `index name` on `table` (`column`);",
