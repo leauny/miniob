@@ -208,7 +208,8 @@ RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Value, int>>
     return rc;
   }
 
-  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(), 0, record.data());
+  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(),
+      values_and_offsets[0].second, values_and_offsets[0].first.data());
   ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
 
@@ -482,7 +483,7 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
 
     case CLogType::UPDATE: {
 
-    }
+    } break;
 
     case CLogType::MTR_COMMIT: {
       const CLogRecordCommitData &commit_record = log_record.commit_record();

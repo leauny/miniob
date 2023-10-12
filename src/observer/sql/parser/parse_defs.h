@@ -94,6 +94,12 @@ struct ConditionSqlNode
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
 };
 
+struct JoinSqlNode
+{
+  std::string relation_name;  ///< Relation to join
+  std::vector<ConditionSqlNode> conditions;
+};
+
 /**
  * @brief 描述一个select语句
  * @ingroup SQLParser
