@@ -105,6 +105,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         LIKE
         NOT_LIKE
         INNER_JOIN
+        NULL_T
+        NULLABLE
+        NOT_NULL
 
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
@@ -131,6 +134,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   int                                           number;
   float                                         floats;
   date                                          dates;
+  bool                                          bools;
 }
 
 %token <number> NUMBER
@@ -184,6 +188,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            help_stmt
 %type <sql_node>            exit_stmt
 %type <sql_node>            command_wrapper
+%type <bools>               is_nullable
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
 
@@ -338,15 +343,18 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE is_nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      if ($6) {
+        $$->nullable = true;
+      }
       free($1);
     }
-    | ID type
+    | ID type is_nullable
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
@@ -356,9 +364,24 @@ attr_def:
       } else {
         $$->length = 4;
       }
+      if ($3) {
+        $$->nullable = true;
+      }
       free($1);
     }
     ;
+is_nullable:
+     /* empty */
+     {
+       $$ = false;
+     }
+     | NOT_NULL
+     {
+       $$ = false;
+     }
+     | NULLABLE {
+       $$ = true;
+     }
 number:
     NUMBER {$$ = $1;}
     ;
@@ -437,6 +460,11 @@ value:
     }
     |DATE {
       $$ = new Value((date)$1);
+      @$ = @1;
+    }
+    |NULL_T {
+      $$ = new Value();
+      $$->set_null();
       @$ = @1;
     }
     ;

@@ -22,7 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "floats",  "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls","floats",  "booleans" };
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -64,6 +64,7 @@ Value::Value(const char *s, int len /*= 0*/)
 Value::Value(date val) {
   set_date(val);
 }
+
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -127,6 +128,12 @@ void Value::set_date(std::chrono::year_month_day val)
   date_value_ = val;
   length_ = strlen(date_to_string(date_value_));
 }
+void Value::set_null()
+{
+  attr_type_ = NULLS;
+  is_null = true;
+  length_ = 4;
+}
 void Value::set_value(const Value &value)
 {
   switch (value.attr_type_) {
@@ -144,7 +151,10 @@ void Value::set_value(const Value &value)
     } break;
     case DATES: {
       set_date(value.get_date());
-    };
+    } break;
+    case NULLS: {
+      set_null();
+    } break;
     case UNDEFINED: {
       ASSERT(false, "got an invalid value type");
     } break;
@@ -153,6 +163,9 @@ void Value::set_value(const Value &value)
 
 const char *Value::data() const
 {
+  if (is_null) {
+    return "null";
+  }
   switch (attr_type_) {
     case CHARS: {
       return str_value_.c_str();
@@ -169,6 +182,10 @@ const char *Value::data() const
 std::string Value::to_string() const
 {
   std::stringstream os;
+  if (is_null) {
+    os << "null";
+    return os.str();
+  }
   switch (attr_type_) {
     case INTS: {
       os << num_value_.int_value_;
@@ -307,6 +324,10 @@ int Value::compare(const Value &other) const
       other_data = std::stof(v);
     }
     return common::compare_float((void *)&this_data, (void *)&other_data);
+  } else if (this->attr_type_ == NULLS) {
+    return -1;
+  } else if (other.attr_type_ == NULLS) {
+    return 1;
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?

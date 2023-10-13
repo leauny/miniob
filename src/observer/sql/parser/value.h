@@ -28,6 +28,7 @@ enum AttrType
   CHARS,          ///< 字符串类型
   INTS,           ///< 整数类型(4字节)
   DATES,          ///< 日期类型
+  NULLS,          ///< NULL类型
   FLOATS,         ///< 浮点数类型(4字节)
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
@@ -72,6 +73,7 @@ public:
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
   void set_date(date val);
+  void set_null();
   void set_value(const Value &value);
 
   std::string to_string() const;
@@ -107,6 +109,7 @@ public:
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;
+  bool is_null = false;
 
   union {
     int int_value_;
