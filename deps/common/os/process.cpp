@@ -48,7 +48,7 @@ std::string get_process_name(const char *prog_name)
     std::cerr << "Failed to alloc memory for program name." << SYS_OUTPUT_FILE_POS << SYS_OUTPUT_ERROR << std::endl;
     return "";
   }
-  snprintf(buf, buf_len, "%s", prog_name);
+  snprintf(buf, buf_len + 1, "%s", prog_name);
 
   process_name = basename(buf);
 
