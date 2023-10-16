@@ -86,7 +86,10 @@ void Value::set_data(char *data, int length)
     case DATES: {
       date_value_ = string_to_date(data, length);
       length_ = length;
-    }
+    } break;
+    case NULLS: {
+      is_null = true;
+    } break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
     } break;
@@ -132,7 +135,7 @@ void Value::set_null()
 {
   attr_type_ = NULLS;
   is_null = true;
-  length_ = 4;
+  length_ = 0;
 }
 void Value::set_value(const Value &value)
 {
@@ -164,7 +167,7 @@ void Value::set_value(const Value &value)
 const char *Value::data() const
 {
   if (is_null) {
-    return "null";
+    return "\7\7\7";
   }
   switch (attr_type_) {
     case CHARS: {
