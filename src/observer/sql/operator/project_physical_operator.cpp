@@ -121,12 +121,19 @@ RC ProjectPhysicalOperator::do_aggregation() {
     if (agg_type[i] != AGG_AVG) {
       continue;
     }
-    if (agg_tuple_->get_value(i).attr_type() == FLOATS) {
-      agg_tuple_->get_value(i).set_float(agg_tuple_->get_value(i).get_float() / (float)count);
-    } else if (agg_tuple_->get_value(i).attr_type() == INTS) {
-      agg_tuple_->get_value(i).set_float((float)agg_tuple_->get_value(i).get_int() / (float)count);
-    } else {
-      return RC::INTERNAL;
+    switch (agg_tuple_->get_value(i).attr_type()) {
+      case FLOATS: {
+        agg_tuple_->get_value(i).set_float(agg_tuple_->get_value(i).get_float() / (float)count);
+      } break;
+      case INTS: {
+        agg_tuple_->get_value(i).set_float((float)agg_tuple_->get_value(i).get_int() / (float)count);
+      } break;
+      case NULLS: {
+        // do nothing
+      } break;
+      default: {
+        return RC::INTERNAL;
+      }
     }
   }
 
@@ -216,6 +223,10 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
     case AGG_AVG: {
        // 不支持boolean
        if (val.attr_type() == NULLS) {
+        if (ans.attr_type() == UNDEFINED) {
+          ans.set_type(val.attr_type());
+          ans.set_value(val);
+        }
         break;
        }
        ++count;
