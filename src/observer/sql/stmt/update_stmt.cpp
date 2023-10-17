@@ -51,7 +51,9 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     const AttrType field_type = field_meta->type();
     AttrType value_type = value.attr_type();
     if (field_type != value_type) {
-      if (field_type == CHARS) {
+      if (field_meta->nullable() && value_type == NULLS) {
+        // do nothing, skip the type check and convert
+      } else if (field_type == CHARS) {
         const char* data = value.get_string().c_str();
         value.set_string(data, strlen(data));
       } else if (field_type == INTS) {

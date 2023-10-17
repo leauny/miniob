@@ -106,8 +106,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NOT_LIKE
         INNER_JOIN
         NULL_T
-        NULLABLE
         NOT_NULL
+        IS
+        IS_NOT
+
 
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
@@ -379,7 +381,7 @@ is_nullable:
      {
        $$ = false;
      }
-     | NULLABLE {
+     | NULL_T {
        $$ = true;
      }
 number:
@@ -747,6 +749,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | LIKE { $$ = LIKE_TO; }
     | NOT_LIKE { $$ = NOT_LIKE_TO; }
+    | IS { $$ = IS_NULL; }
+    | IS_NOT { $$ = IS_NOT_NULL; }
     ;
 join_stmt:
     INNER_JOIN ID ON condition_list {

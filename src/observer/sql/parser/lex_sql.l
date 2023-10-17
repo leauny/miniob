@@ -136,7 +136,6 @@ TEXT                                    RETURN_TOKEN(STRING_T);
 FLOAT                                   RETURN_TOKEN(FLOAT_T);
 DATE                                    RETURN_TOKEN(DATE_T);
 NULL                                    RETURN_TOKEN(NULL_T);
-NULLABLE                                RETURN_TOKEN(NULLABLE);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
@@ -151,6 +150,8 @@ COUNT                                  { yylval->agg_t = AGG_COUNT; RETURN_TOKEN
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 
+IS                                      RETURN_TOKEN(IS);
+"IS NOT"                                RETURN_TOKEN(IS_NOT);
 "NOT LIKE"                              RETURN_TOKEN(NOT_LIKE);
 LIKE                                    RETURN_TOKEN(LIKE);
 ","                                     RETURN_TOKEN(COMMA);

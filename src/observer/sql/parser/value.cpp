@@ -89,6 +89,7 @@ void Value::set_data(char *data, int length)
     } break;
     case NULLS: {
       is_null = true;
+      length_ = length;
     } break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
@@ -135,7 +136,7 @@ void Value::set_null()
 {
   attr_type_ = NULLS;
   is_null = true;
-  length_ = 0;
+  length_ = 4;
 }
 void Value::set_value(const Value &value)
 {
@@ -279,6 +280,9 @@ int Value::compare(const Value &other) const
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
       } break;
+      case NULLS: {
+        return 0;
+      } break;
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }
@@ -327,9 +331,9 @@ int Value::compare(const Value &other) const
       other_data = std::stof(v);
     }
     return common::compare_float((void *)&this_data, (void *)&other_data);
-  } else if (this->attr_type_ == NULLS) {
+  } else if (this->attr_type_ == NULLS && other.attr_type_ != NULLS) {
     return -1;
-  } else if (other.attr_type_ == NULLS) {
+  } else if (other.attr_type_ == NULLS && this->attr_type_ != NULLS) {
     return 1;
   }
   LOG_WARN("not supported");

@@ -106,14 +106,61 @@ RC DefaultConditionFilter::init(Table &table, const ConditionSqlNode &condition)
   }
 
   // 校验和转换
-  //  if (!field_type_compare_compatible_table[type_left][type_right]) {
+  //  if (!type_left_compare_compatible_table[type_left][type_right]) {
   //    // 不能比较的两个字段， 要把信息传给客户端
-  //    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  //    return RC::SCHEMA_type_left_MISMATCH;
   //  }
   // NOTE：这里没有实现不同类型的数据比较，比如整数跟浮点数之间的对比
   // 但是选手们还是要实现。这个功能在预选赛中会出现
+  // 默认左field，右value, 来进行转换
   if (type_left != type_right) {
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    if (type_left == NULLS || type_right == NULLS) {
+      // do nothing, skip the type check and convert
+    } else if (type_left == CHARS) {
+      const char* data = right.value.get_string().c_str();
+      right.value.set_string(data, strlen(data));
+    } else if (type_left == INTS) {
+      int data;
+      switch (type_right)
+      {
+        case CHARS:{
+          std::string v = (char *)right.value.data();
+          if(!('0' <= v[0] && v[0] <= '9')) {
+            data = 0;
+          } else {
+            data = std::stoi(v);
+          }
+        }  break;
+        case FLOATS:{
+          float v = *(float *) right.value.data();
+          data = (int) std::round(v);
+        }  break;
+      }
+      right.value.set_int(data);
+    } else if (type_left == FLOATS) {
+      float data;
+      switch (type_right)
+      {
+        case CHARS:{
+          std::string v = (char *)right.value.data();
+          if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+            data = 0;
+          } else {
+            data = std::stof(v);
+          }
+        }  break;
+        case INTS:{
+          int v = *(int *) right.value.data();
+          data = (float) v;
+        }  break;
+      }
+      right.value.set_float(data);
+    }
+    else {
+      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, type_right=%d",
+          table.name(), type_left, type_left, type_right);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
   }
 
   return init(left, right, type_left, condition.comp);
@@ -125,15 +172,23 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   Value right_value;
 
   if (left_.is_attr) {  // value
-    left_value.set_type(attr_type_);
-    left_value.set_data(rec.data() + left_.attr_offset, left_.attr_length);
+    if (0 == strcmp(rec.data() + left_.attr_offset, "\7\7\7")) {
+      left_value.set_null();
+    } else {
+      left_value.set_type(attr_type_);
+      left_value.set_data(rec.data() + left_.attr_offset, left_.attr_length);
+    }
   } else {
     left_value.set_value(left_.value);
   }
 
   if (right_.is_attr) {
-    right_value.set_type(attr_type_);
-    right_value.set_data(rec.data() + right_.attr_offset, right_.attr_length);
+    if (0 == strcmp(rec.data() + right_.attr_offset, "\7\7\7")) {
+      left_value.set_null();
+    } else {
+      right_value.set_type(attr_type_);
+      right_value.set_data(rec.data() + right_.attr_offset, right_.attr_length);
+    }
   } else {
     right_value.set_value(right_.value);
   }
@@ -157,7 +212,10 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       return cmp_result >= 0;
     case GREAT_THAN:
       return cmp_result > 0;
-
+    case IS_NULL:
+      return cmp_result == 0;
+    case IS_NOT_NULL:
+      return cmp_result != 0;
     default:
       break;
   }

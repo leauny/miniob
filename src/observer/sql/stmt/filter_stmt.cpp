@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
+#include <cmath>
 #include "common/rc.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -134,6 +135,57 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
 
   filter_unit->set_comp(comp);
 
-  // 检查两个类型是否能够比较
+  // 检查两个类型是否能够比较, 仅考虑左field，右value的情况
+  const FieldMeta* left = filter_unit->left().field.meta();
+  FilterObj right = filter_unit->right();
+  AttrType type_left = left->type();
+  AttrType type_right = right.value.attr_type();
+
+  if (type_left != type_right) {
+    if (type_left == NULLS || type_right == NULLS) {
+      // do nothing, skip the type check and convert
+    } else if (type_left == CHARS) {
+      const char *data = right.value.get_string().c_str();
+      right.value.set_string(data, strlen(data));
+    } else if (type_left == INTS) {
+      int data;
+      switch (type_right) {
+        case CHARS: {
+          std::string v = (char *)right.value.data();
+          if (!('0' <= v[0] && v[0] <= '9')) {
+            data = 0;
+          } else {
+            data = std::stoi(v);
+          }
+        } break;
+        case FLOATS: {
+          float v = *(float *)right.value.data();
+          data    = (int)std::round(v);
+        } break;
+      }
+      right.value.set_int(data);
+    } else if (type_left == FLOATS) {
+      float data;
+      switch (type_right) {
+        case CHARS: {
+          std::string v = (char *)right.value.data();
+          if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
+            data = 0;
+          } else {
+            data = std::stof(v);
+          }
+        } break;
+        case INTS: {
+          int v = *(int *)right.value.data();
+          data  = (float)v;
+        } break;
+      }
+      right.value.set_float(data);
+    } else {
+      LOG_WARN("field type mismatch, field=%s, field type=%d, type_right=%d",
+        type_left, type_left, type_right);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  }
   return rc;
 }
