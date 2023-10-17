@@ -62,6 +62,10 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       if (field_type != value_type) {
         if (field_meta->nullable() && value_type == NULLS) {
           continue;
+        } else if (!field_meta->nullable() && value_type == NULLS) {
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+              table_name, field_meta->name(), field_type, value_type);
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
         }
         if (field_type == CHARS) {
           const char* data = value[i].get_string().c_str();
@@ -77,13 +81,14 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
               } else {
                 data = std::stoi(v);
               }
+              mutable_value[i].set_int(data);
             }  break;
             case FLOATS:{
               float v = *(float *) value[i].data();
               data = (int) std::round(v);
+              mutable_value[i].set_int(data);
             }  break;
           }
-          mutable_value[i].set_int(data);
         } else if (field_type == FLOATS) {
           float data;
           switch (value_type)
@@ -95,14 +100,15 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
               } else {
                 data = std::stof(v);
               }
+              mutable_value[i].set_float(data);
             }  break;
             case INTS:{
               int v = *(int *) value[i].data();
               data = (float) v;
+              mutable_value[i].set_float(data);
             }  break;  
           }
-          mutable_value[i].set_float(data);
-        } 
+        }
         else {
           LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);

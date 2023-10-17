@@ -53,6 +53,10 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     if (field_type != value_type) {
       if (field_meta->nullable() && value_type == NULLS) {
         // do nothing, skip the type check and convert
+      } else if (!field_meta->nullable() && value_type == NULLS) {
+        LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+          table_name, field_meta->name(), field_type, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       } else if (field_type == CHARS) {
         const char* data = value.get_string().c_str();
         value.set_string(data, strlen(data));

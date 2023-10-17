@@ -144,9 +144,13 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   if (type_left != type_right) {
     if (type_left == NULLS || type_right == NULLS) {
       // do nothing, skip the type check and convert
+    } else if (!left->nullable() && type_right == NULLS) {
+      LOG_WARN("field type mismatch, field=%s, field type=%d, value_type=%d",
+              left->name(), type_left, type_right);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;return RC::SCHEMA_FIELD_TYPE_MISMATCH;
     } else if (type_left == CHARS) {
-      const char *data = right.value.get_string().c_str();
-      right.value.set_string(data, strlen(data));
+        const char *data = right.value.get_string().c_str();
+        right.value.set_string(data, strlen(data));
     } else if (type_left == INTS) {
       int data;
       switch (type_right) {
