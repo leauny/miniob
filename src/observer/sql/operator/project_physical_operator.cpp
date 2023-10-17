@@ -239,8 +239,10 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
     }
     case AGG_COUNT: {
        if (val.attr_type() == NULLS) {
-        ans.set_type(INTS);
-        ans.set_int(0);
+        if (ans.attr_type() == UNDEFINED) {
+          ans.set_type(INTS);
+          ans.set_int(0);
+        }
         break;
        }
        if (ans.attr_type() == UNDEFINED) {
