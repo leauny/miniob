@@ -138,11 +138,15 @@ DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 
-MIN                                    { yylval->agg_t = AGG_MIN; RETURN_TOKEN(AGG); }
-MAX                                    { yylval->agg_t = AGG_MAX; RETURN_TOKEN(AGG); }
-AVG                                    { yylval->agg_t = AGG_AVG; RETURN_TOKEN(AGG); }
-SUM                                    { yylval->agg_t = AGG_SUM; RETURN_TOKEN(AGG); }
-COUNT                                  { yylval->agg_t = AGG_COUNT; RETURN_TOKEN(AGG); }
+LENGTH                                  RETURN_TOKEN(LENGTH);
+ROUND                                   RETURN_TOKEN(ROUND);
+DATE_FORMAT                             RETURN_TOKEN(DATE_FORMAT);
+
+MIN                                     { yylval->func_t = FUNC_MIN; RETURN_TOKEN(AGG); }
+MAX                                     { yylval->func_t = FUNC_MAX; RETURN_TOKEN(AGG); }
+AVG                                     { yylval->func_t = FUNC_AVG; RETURN_TOKEN(AGG); }
+SUM                                     { yylval->func_t = FUNC_SUM; RETURN_TOKEN(AGG); }
+COUNT                                   { yylval->func_t = FUNC_COUNT; RETURN_TOKEN(AGG); }
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);
 

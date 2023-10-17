@@ -92,21 +92,24 @@ extern int yydebug;
     DATA = 293,                    /* DATA  */
     INFILE = 294,                  /* INFILE  */
     EXPLAIN = 295,                 /* EXPLAIN  */
-    EQ = 296,                      /* EQ  */
-    LT = 297,                      /* LT  */
-    GT = 298,                      /* GT  */
-    LE = 299,                      /* LE  */
-    GE = 300,                      /* GE  */
-    NE = 301,                      /* NE  */
-    LIKE = 302,                    /* LIKE  */
-    NOT_LIKE = 303,                /* NOT_LIKE  */
-    NUMBER = 304,                  /* NUMBER  */
-    FLOAT = 305,                   /* FLOAT  */
-    ID = 306,                      /* ID  */
-    SSS = 307,                     /* SSS  */
-    AGG = 308,                     /* AGG  */
-    DATE = 309,                    /* DATE  */
-    UMINUS = 310                   /* UMINUS  */
+    LENGTH = 296,                  /* LENGTH  */
+    ROUND = 297,                   /* ROUND  */
+    DATE_FORMAT = 298,             /* DATE_FORMAT  */
+    EQ = 299,                      /* EQ  */
+    LT = 300,                      /* LT  */
+    GT = 301,                      /* GT  */
+    LE = 302,                      /* LE  */
+    GE = 303,                      /* GE  */
+    NE = 304,                      /* NE  */
+    LIKE = 305,                    /* LIKE  */
+    NOT_LIKE = 306,                /* NOT_LIKE  */
+    NUMBER = 307,                  /* NUMBER  */
+    FLOAT = 308,                   /* FLOAT  */
+    ID = 309,                      /* ID  */
+    SSS = 310,                     /* SSS  */
+    AGG = 311,                     /* AGG  */
+    DATE = 312,                    /* DATE  */
+    UMINUS = 313                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -115,14 +118,14 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 110 "yacc_sql.y"
+#line 113 "yacc_sql.y"
 
   ParsedSqlNode *                               sql_node;
   ConditionSqlNode *                            condition;
   Value *                                       value;
   std::vector<Value> *                          record;
   enum CompOp                                   comp;
-  enum AggType                                  agg_t;
+  enum FuncType                                 func_t;
   RelAttrSqlNode *                              rel_attr;
   std::vector<AttrInfoSqlNode> *                attr_infos;
   AttrInfoSqlNode *                             attr_info;
@@ -139,7 +142,7 @@ union YYSTYPE
   float                                         floats;
   date                                          dates;
 
-#line 143 "yacc_sql.hpp"
+#line 146 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

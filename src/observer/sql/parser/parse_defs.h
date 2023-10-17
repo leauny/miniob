@@ -29,17 +29,21 @@ struct UpdateSqlNode;
  */
 
 /**
- * @brief 描述聚合函数的类型
+ * @brief 描述函数的类型
  */
-enum AggType: int
+enum FuncType : int
 {
-  AGG_NONE = 0,
-  AGG_MIN,
-  AGG_MAX,
-  AGG_AVG,
-  AGG_SUM,
-  AGG_COUNT,
-  AGG_WCOUNT,  // 通配符版本count
+  FUNC_NONE = 0,
+  FUNC_MIN,
+  FUNC_MAX,
+  FUNC_AVG,
+  FUNC_SUM,
+  FUNC_COUNT,
+  FUNC_WCOUNT,  // 通配符版本count
+  FUNC_AGG_END,
+  FUNC_LENGTH,
+  FUNC_ROUND,
+  FUNC_DATE_FORMAT,
 };
 
 /**
@@ -51,9 +55,10 @@ enum AggType: int
  */
 struct RelAttrSqlNode
 {
-  AggType agg_type{AGG_NONE};  ///< aggregation type            聚合函数类型，默认为NONE代表非聚合函数
-  std::string relation_name;   ///< relation name (may be NULL) 表名
-  std::string attribute_name;  ///< attribute name              属性名
+  FuncType func_type{FUNC_NONE};  ///< function type            函数类型，默认为NONE代表非聚合函数
+  std::string func_parm{};        ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
+  std::string relation_name;      ///< relation name (may be NULL) 表名
+  std::string attribute_name;     ///< attribute name              属性名
 };
 
 /**

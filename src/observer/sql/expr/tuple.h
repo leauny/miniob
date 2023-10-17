@@ -55,11 +55,11 @@ public:
   {
     cells_.push_back(cell);
   }
-  void append_cell(const char *table, const char *field, AggType type = AGG_NONE)
+  void append_cell(const char *table, const char *field, FuncType type = FUNC_NONE)
   {
     append_cell(TupleCellSpec(table, field, nullptr, type));
   }
-  void append_cell(const char *alias, AggType type = AGG_NONE)
+  void append_cell(const char *alias, FuncType type = FUNC_NONE)
   {
     append_cell(TupleCellSpec(alias, type));
   }
@@ -224,10 +224,15 @@ private:
   std::vector<FieldExpr *> speces_;
 };
 
-class AggregationTuple : public Tuple
+/**
+ * @brief 没有子元组的元组，用于自行构建元组
+ * @ingroup Tuple
+ */
+class LeafTuple : public Tuple
 {
 public:
-  AggregationTuple() = default;
+  LeafTuple() = default;
+  LeafTuple(int size) { set_size(size); }
 
   RC cell_at(int index, Value &cell) const override
   {
@@ -245,6 +250,11 @@ public:
   {
     ASSERT((index < 0 || index >= static_cast<int>(values_.size())), "index out of range.");
     return values_[index];
+  }
+
+  void set_value(int index, Value value) {
+    ASSERT((index < 0 || index >= static_cast<int>(values_.size())), "index out of range.");
+    values_[index] = value;
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
@@ -309,11 +319,18 @@ public:
     return tuple_->find_cell(spec, cell);
   }
 
-  AggType agg_type_at(int index) {
+  FuncType func_type_at(int index) {
     if (index < 0 || index >= static_cast<int>(speces_.size())) {
-      return AGG_NONE;
+      return FUNC_NONE;
     }
-    return speces_[index]->agg_type();
+    return speces_[index]->func_type();
+  }
+
+  std::string func_parm_at(int index) {
+    if (index < 0 || index >= static_cast<int>(speces_.size())) {
+      return "";
+    }
+    return speces_[index]->func_parm();
   }
 
 #if 0

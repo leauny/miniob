@@ -96,6 +96,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DATA
         INFILE
         EXPLAIN
+        LENGTH
+        ROUND
+        DATE_FORMAT
         EQ
         LT
         GT
@@ -113,7 +116,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                                       value;
   std::vector<Value> *                          record;
   enum CompOp                                   comp;
-  enum AggType                                  agg_t;
+  enum FuncType                                 func_t;
   RelAttrSqlNode *                              rel_attr;
   std::vector<AttrInfoSqlNode> *                attr_infos;
   AttrInfoSqlNode *                             attr_info;
@@ -135,7 +138,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
-%token <agg_t>  AGG
+%token <func_t> AGG
 %token <dates>  DATE
 //非终结符
 
@@ -445,6 +448,33 @@ value:
       $$ = new Value((date)$1);
       @$ = @1;
     }
+    | LENGTH LBRACE value RBRACE
+    {
+        if ($3->attr_type() != AttrType::CHARS) {
+          LOG_ERROR("length function only support string type.");
+          return -1;
+        }
+        $$ = new Value((int)$3->get_string().size());  // translate into int
+        free($3);
+    }
+    | ROUND LBRACE value COMMA number RBRACE
+    {
+        if ($3->attr_type() != AttrType::FLOATS) {
+          LOG_ERROR("round function only support float type.");
+          return -1;
+        }
+        $$ = new Value((float)($3->get_float(), $5));
+        free($3);
+    }
+    | DATE_FORMAT LBRACE value COMMA SSS RBRACE
+    {
+        if ($3->attr_type() != AttrType::DATES) {
+          LOG_ERROR("data_format function only support date type.");
+          return -1;
+        }
+        $$ = new Value((date)$3->get_date(), common::substr($5,1,strlen($5)-2));
+        free($3);
+    }
     ;
     
 delete_stmt:    /*  delete 语句的语法解析树*/
@@ -553,6 +583,12 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
+    | expression_list {
+       // TODO: expression support
+    }
+    | expression_list rel_attr attr_list {
+      // TODO: expression support
+    }
     ;
 
 rel_attr:
@@ -572,15 +608,30 @@ rel_attr:
       $$ = new RelAttrSqlNode;
       $$->relation_name  = "";
       $$->attribute_name = "*";
-      if ($1 != AGG_COUNT) {
+      if ($1 != FUNC_COUNT) {
         LOG_ERROR("Aggregation * only support count(*).");
         return -1;
       }
-      $$->agg_type = AGG_WCOUNT;  // 通配符版本的count
+      $$->func_type = FUNC_WCOUNT;  // 通配符版本的count
     }
     | AGG LBRACE rel_attr RBRACE {
       $$ = $3;
-      $$->agg_type = $1;
+      $$->func_type = $1;
+    }
+    | LENGTH LBRACE rel_attr RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_LENGTH;
+    }
+    | ROUND LBRACE rel_attr COMMA number RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_ROUND;
+      $$->func_parm = std::to_string($5);
+    }
+    | DATE_FORMAT LBRACE rel_attr COMMA SSS RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_DATE_FORMAT;
+      $$->func_parm = common::substr($5,1,strlen($5)-2);
+      free($5);
     }
     ;
 

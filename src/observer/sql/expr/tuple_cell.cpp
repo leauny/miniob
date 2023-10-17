@@ -19,7 +19,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 
-TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, const char *alias, AggType agg_type)
+TupleCellSpec::TupleCellSpec(
+    const char *table_name, const char *field_name, const char *alias, FuncType func_type, const std::string &func_parm)
 {
   if (table_name) {
     table_name_ = table_name;
@@ -27,7 +28,8 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
   if (field_name) {
     field_name_ = field_name;
   }
-  agg_type_ = agg_type;
+  func_type_ = func_type;
+  func_parm_ = func_parm;
   // TODO(wty): alias used at ExpressionTuple::find_cell();
   if (alias) {
     alias_ = alias;
@@ -37,42 +39,74 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
     } else {
       alias_ = table_name_ + "." + field_name_;
     }
-    switch (agg_type_) {
-      case AGG_NONE: break;
-      case AGG_COUNT: {
+    switch (func_type_) {
+      case FUNC_AGG_END:
+      case FUNC_NONE: break;
+      case FUNC_COUNT: {
         alias_ = "COUNT(" + alias_ + ")";
         break;
       }
-      case AGG_WCOUNT: {
+      case FUNC_WCOUNT: {
         alias_ = "COUNT(*)";
         break;
       }
-      case AGG_MIN: {
+      case FUNC_MIN: {
         alias_ = "MIN(" + alias_ + ")";
         break;
       }
-      case AGG_MAX: {
+      case FUNC_MAX: {
         alias_ = "MAX(" + alias_ + ")";
         break;
       }
-      case AGG_AVG: {
+      case FUNC_AVG: {
         alias_ = "AVG(" + alias_ + ")";
         break;
       }
-      case AGG_SUM: {
+      case FUNC_SUM: {
         alias_ = "SUM(" + alias_ + ")";
         break;
       }
+      case FUNC_LENGTH: {
+        alias_ = "LENGTH(" + alias_ + ")";
+        break;
+      }
+      case FUNC_ROUND: {
+        alias_ = "ROUND(" + alias_ + ")";
+        break;
+      }
+      case FUNC_DATE_FORMAT: {
+        alias_ = "DATE_FORMAT(" + alias_ + ")";
+        break;
+      }
       default: {
-        LOG_ERROR("Unknown aggration type: %d.", static_cast<int>(agg_type));
+        LOG_ERROR("Unknown function type: %d.", static_cast<int>(func_type));
       }
     }
   }
 }
 
-TupleCellSpec::TupleCellSpec(const char *alias, AggType agg_type)
+TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, const char *alias) {
+  if (table_name) {
+    table_name_ = table_name;
+  }
+  if (field_name) {
+    field_name_ = field_name;
+  }
+  // TODO(wty): alias used at ExpressionTuple::find_cell();
+  if (alias) {
+    alias_ = alias;
+  } else {
+    if (table_name_.empty()) {
+      alias_ = field_name_;
+    } else {
+      alias_ = table_name_ + "." + field_name_;
+    }
+  }
+}
+
+TupleCellSpec::TupleCellSpec(const char *alias, FuncType func_type)
 {
-  agg_type_ = agg_type;
+  func_type_ = func_type;
   if (alias) {
     alias_ = alias;
   }
