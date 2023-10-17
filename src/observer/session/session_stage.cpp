@@ -167,12 +167,17 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           sql_result->set_return_code(rc);
           return rc;
         }
-        if (subquery->sql_node()->selection.query_values.size() != 1 || subquery->sql_node()->selection.query_values[0].size() != 1) {
+        if (subquery->sql_node()->selection.query_values.empty()) {
+          Value new_value;
+          new_value.set_null();
+          field.value = new_value;
+        } else if (subquery->sql_node()->selection.query_values.size() > 1 || subquery->sql_node()->selection.query_values[0].size() > 1) {
           LOG_TRACE("subquery result is not a single value");
           sql_result->set_return_code(RC::INTERNAL);
           return RC::INTERNAL;
+        } else {
+          field.value = subquery->sql_node()->selection.query_values[0][0];
         }
-        field.value = subquery->sql_node()->selection.query_values[0][0];
       }
       update.update_fields.push_back({field.field_name, field.value});
     }
