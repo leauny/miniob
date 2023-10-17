@@ -102,7 +102,6 @@ RC ProjectPhysicalOperator::do_aggregation() {
   RC rc = RC::SUCCESS;
   int count = 0;  // 用于统计tuple个数
   do {
-    ++count;
     auto tuple = current_tuple_norm();
     assert(tuple != nullptr);
 
@@ -114,7 +113,7 @@ RC ProjectPhysicalOperator::do_aggregation() {
         return rc;
       }
       if (agg_type[i] == AGG_NONE) { return RC::INTERNAL; }
-      compute_aggregation(agg_type[i], agg_tuple_->get_value(i), value);
+      compute_aggregation(agg_type[i], agg_tuple_->get_value(i), value, count);
     }
   } while (!children_.empty() && RC::SUCCESS == children_[0]->next());
 
@@ -133,7 +132,7 @@ RC ProjectPhysicalOperator::do_aggregation() {
 
   return rc;
 }
-RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const Value &val) {
+RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const Value &val, int &count) {
   switch (type) {
     case AGG_MIN: {
        // 初始化值
@@ -143,6 +142,9 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
         break;
        }
        switch (val.attr_type()) {
+        case NULLS: {
+          break;
+        }
         case CHARS: {
           if (strcmp(ans.data(), val.data()) <= 0) { break; }
           ans.set_data(val.data(), strlen(val.data()));
@@ -178,6 +180,9 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
         break;
        }
        switch (val.attr_type()) {
+        case NULLS: {
+          break;
+        }
         case CHARS: {
           if (strcmp(ans.data(), val.data()) >= 0) { break; }
           ans.set_data(val.data(), strlen(val.data()));
@@ -210,6 +215,10 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
     case AGG_SUM:
     case AGG_AVG: {
        // 不支持boolean
+       if (val.attr_type() == NULLS) {
+        break;
+       }
+       ++count;
        if (ans.attr_type() == UNDEFINED) {
         ans.set_type(val.attr_type());
         if (val.attr_type() == INTS) { ans.set_int(val.get_int()); }

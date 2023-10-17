@@ -55,7 +55,7 @@ private:
    * @brief 通过在内部调用普通select步骤来执行聚集函数，最后将agg_tuple_复制给tuple_完成
    * */
   RC do_aggregation();
-  RC compute_aggregation(AggType type, Value &ans, const Value &val);
+  RC compute_aggregation(AggType type, Value &ans, const Value &val, int &count);
   Tuple *current_tuple_norm();  // 用于在do_aggregation内调用
 
   ProjectTuple tuple_;
