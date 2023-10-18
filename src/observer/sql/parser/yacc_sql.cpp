@@ -1977,7 +1977,7 @@ yyreduce:
       (yyval.attr_info) = new AttrInfoSqlNode;
       (yyval.attr_info)->type = (AttrType)(yyvsp[-4].number);
       (yyval.attr_info)->name = (yyvsp[-5].string);
-      (yyval.attr_info)->length = (yyvsp[-2].number);
+      (yyval.attr_info)->length = (yyvsp[-2].number) + 1;
       if ((yyvsp[0].bools)) {
         (yyval.attr_info)->nullable = true;
       }

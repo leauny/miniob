@@ -137,7 +137,7 @@ void Value::set_string(const char *s, int len /*= 0*/)
   } else {
     str_value_.assign(s);
   }
-  length_ = str_value_.length();
+  length_ = str_value_.length() + 1;
 }
 void Value::set_date(std::chrono::year_month_day val)
 {
