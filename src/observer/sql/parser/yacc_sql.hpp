@@ -88,30 +88,34 @@ extern int yydebug;
     AND = 289,                     /* AND  */
     SET = 290,                     /* SET  */
     ON = 291,                      /* ON  */
-    LOAD = 292,                    /* LOAD  */
-    DATA = 293,                    /* DATA  */
-    INFILE = 294,                  /* INFILE  */
-    EXPLAIN = 295,                 /* EXPLAIN  */
-    EQ = 296,                      /* EQ  */
-    LT = 297,                      /* LT  */
-    GT = 298,                      /* GT  */
-    LE = 299,                      /* LE  */
-    GE = 300,                      /* GE  */
-    NE = 301,                      /* NE  */
-    LIKE = 302,                    /* LIKE  */
-    NOT_LIKE = 303,                /* NOT_LIKE  */
-    INNER_JOIN = 304,              /* INNER_JOIN  */
-    NULL_T = 305,                  /* NULL_T  */
-    NOT_NULL = 306,                /* NOT_NULL  */
-    IS = 307,                      /* IS  */
-    IS_NOT = 308,                  /* IS_NOT  */
-    NUMBER = 309,                  /* NUMBER  */
-    FLOAT = 310,                   /* FLOAT  */
-    ID = 311,                      /* ID  */
-    SSS = 312,                     /* SSS  */
-    AGG = 313,                     /* AGG  */
-    DATE = 314,                    /* DATE  */
-    UMINUS = 315                   /* UMINUS  */
+    AS = 292,                      /* AS  */
+    LOAD = 293,                    /* LOAD  */
+    DATA = 294,                    /* DATA  */
+    INFILE = 295,                  /* INFILE  */
+    EXPLAIN = 296,                 /* EXPLAIN  */
+    LENGTH = 297,                  /* LENGTH  */
+    ROUND = 298,                   /* ROUND  */
+    DATE_FORMAT = 299,             /* DATE_FORMAT  */
+    EQ = 300,                      /* EQ  */
+    LT = 301,                      /* LT  */
+    GT = 302,                      /* GT  */
+    LE = 303,                      /* LE  */
+    GE = 304,                      /* GE  */
+    NE = 305,                      /* NE  */
+    LIKE = 306,                    /* LIKE  */
+    NOT_LIKE = 307,                /* NOT_LIKE  */
+    INNER_JOIN = 308,              /* INNER_JOIN  */
+    NULL_T = 309,                  /* NULL_T  */
+    NOT_NULL = 310,                /* NOT_NULL  */
+    IS = 311,                      /* IS  */
+    IS_NOT = 312,                  /* IS_NOT  */
+    NUMBER = 313,                  /* NUMBER  */
+    FLOAT = 314,                   /* FLOAT  */
+    ID = 315,                      /* ID  */
+    SSS = 316,                     /* SSS  */
+    AGG = 317,                     /* AGG  */
+    DATE = 318,                    /* DATE  */
+    UMINUS = 319                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -120,14 +124,14 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 116 "yacc_sql.y"
+#line 121 "yacc_sql.y"
 
   ParsedSqlNode *                               sql_node;
   ConditionSqlNode *                            condition;
   Value *                                       value;
   std::vector<Value> *                          record;
   enum CompOp                                   comp;
-  enum AggType                                  agg_t;
+  enum FuncType                                 func_t;
   RelAttrSqlNode *                              rel_attr;
   std::vector<AttrInfoSqlNode> *                attr_infos;
   AttrInfoSqlNode *                             attr_info;
@@ -137,7 +141,7 @@ union YYSTYPE
   std::vector<std::vector<Value>> *             record_list;
   std::vector<ConditionSqlNode> *               condition_list;
   std::vector<RelAttrSqlNode> *                 rel_attr_list;
-  std::vector<std::string> *                    relation_list;
+  std::vector<std::vector<std::string>> *       relation_list;   // relation_name, alias
   std::vector<UpdateField> *                    update_list;
   std::vector<JoinSqlNode> *                    join_list;
   char *                                        string;
@@ -146,7 +150,7 @@ union YYSTYPE
   date                                          dates;
   bool                                          bools;
 
-#line 150 "yacc_sql.hpp"
+#line 154 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
