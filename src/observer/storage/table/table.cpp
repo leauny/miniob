@@ -561,3 +561,7 @@ RC Table::sync()
   LOG_INFO("Sync table over. table=%s", name());
   return rc;
 }
+
+const std::vector<Index*>& Table::all_indexes() {
+  return indexes_;
+}

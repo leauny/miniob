@@ -55,6 +55,7 @@ public:
   explicit Value(bool val);
   explicit Value(const char *s, int len = 0);
   explicit Value(date val);
+  explicit Value(date val, std::string date_format);
 
   Value(const Value &other) = default;
   Value &operator=(const Value &other) = default;
@@ -70,10 +71,12 @@ public:
   }
   void set_int(int val);
   void set_float(float val);
+  void set_float(float val, int round);
   void set_boolean(bool val);
   void set_string(const char *s, int len = 0);
   void set_date(date val);
   void set_null();
+  void set_date(date val, std::string date_format);
   void set_value(const Value &value);
 
   std::string to_string() const;
@@ -102,14 +105,17 @@ public:
   std::string get_string() const;
   bool get_boolean() const;
   date get_date() const;
-  static const char* date_to_string(date val);
+  std::string get_date_format() const;
+  const char *date_to_string(date val) const;
   static date string_to_date(const char * data, int length);
 
 
 private:
   AttrType attr_type_ = UNDEFINED;
   int length_ = 0;
-  bool is_null = false;
+  int round_ = -1;                        // 保留小数点后几位
+  std::string date_format_{"%Y-%m-%d"};   // 日期格式
+
 
   union {
     int int_value_;

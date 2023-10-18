@@ -30,7 +30,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
     return rc;
   }
   if (has_agg_ && !agg_tuple_) {
-    agg_tuple_ = new AggregationTuple;
+    agg_tuple_ = new LeafTuple;
   }
   return RC::SUCCESS;
 }
@@ -63,6 +63,9 @@ RC ProjectPhysicalOperator::close()
   if (has_agg_ && agg_tuple_) {
     delete agg_tuple_;
   }
+  if (result_) {
+    delete result_;
+  }
   return RC::SUCCESS;
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
@@ -70,7 +73,45 @@ Tuple *ProjectPhysicalOperator::current_tuple()
   if (has_agg_) {
     return agg_tuple_;
   }
-  return current_tuple_norm();
+
+  // function length, round, data_format.
+  if (!result_) {
+    result_ = new LeafTuple(current_tuple_norm()->cell_num());         // 设置聚集函数tuple大小
+  }
+  int cell_num = tuple_.cell_num();
+  for (int i = 0; i < cell_num; i++) {
+    auto func_type = tuple_.func_type_at(i);
+    auto func_parm = tuple_.func_parm_at(i);
+
+    // TODO: 检测value是否是null
+    Value value;
+    tuple_.cell_at(i, value);
+
+    // 无需判断类型，在SelectStmt::create已经判断过
+    switch (func_type) {
+      case FUNC_LENGTH: {
+        value.set_int(strlen(value.data()));
+        break;
+      }
+      case FUNC_ROUND: {
+        value.set_float(value.get_float(), std::stoi(func_parm));
+        value.set_float(std::stof(value.to_string()));
+        break;
+      }
+      case FUNC_DATE_FORMAT: {
+        value.set_date(value.get_date(), func_parm);
+        auto str = value.to_string();
+        value.set_type(CHARS);
+        value.set_data(str.c_str(), str.size());
+        break;
+      }
+    }
+
+    // 设置结果
+    result_->set_value(i, value);
+  }
+
+  return result_;
 }
 
 Tuple *ProjectPhysicalOperator::current_tuple_norm()
@@ -79,24 +120,26 @@ Tuple *ProjectPhysicalOperator::current_tuple_norm()
   return &tuple_;
 }
 
-void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta *field_meta, AggType type)
+void ProjectPhysicalOperator::add_projection(
+    const Table *table, const FieldMeta *field_meta, const std::string& alias, FuncType type, std::string func_parm)
 {
-  ASSERT(has_agg_ && type == AGG_NONE, "Mixed selection.");
-  if (type != AGG_NONE){
+  ASSERT(has_agg_ && !(type > FUNC_NONE && type < FUNC_AGG_END), "Mixed selection.");
+  if (type > FUNC_NONE && type < FUNC_AGG_END){
     has_agg_ = true;
   }
   // 对单表来说，展示的(alias) 字段总是字段名称，
   // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name(), type);
+  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(),
+      alias == "" ? field_meta->name() : alias.c_str(), type, func_parm);
   tuple_.add_cell_spec(spec);
 }
 
 RC ProjectPhysicalOperator::do_aggregation() {
   auto* tuple = dynamic_cast<ProjectTuple*>(current_tuple_norm());
   agg_tuple_->set_size(tuple->cell_num());         // 设置聚集函数tuple大小
-  std::vector<AggType> agg_type(tuple->cell_num());
+  std::vector<FuncType> agg_type(tuple->cell_num());
   for (auto i = 0; i < tuple->cell_num(); ++i) {
-    agg_type[i] = tuple->agg_type_at(i);
+    agg_type[i] = tuple->func_type_at(i);
   }
 
   RC rc = RC::SUCCESS;
@@ -112,13 +155,13 @@ RC ProjectPhysicalOperator::do_aggregation() {
       if (rc != RC::SUCCESS) {
         return rc;
       }
-      if (agg_type[i] == AGG_NONE) { return RC::INTERNAL; }
+      if (!(agg_type[i] > FUNC_NONE && agg_type[i] < FUNC_AGG_END)) { return RC::INTERNAL; }
       compute_aggregation(agg_type[i], agg_tuple_->get_value(i), value, count);
     }
   } while (!children_.empty() && RC::SUCCESS == children_[0]->next());
 
   for (auto i = 0; i < tuple->cell_num(); ++i) {
-    if (agg_type[i] != AGG_AVG) {
+    if (agg_type[i] != FUNC_AVG) {
       continue;
     }
     switch (agg_tuple_->get_value(i).attr_type()) {
@@ -139,88 +182,46 @@ RC ProjectPhysicalOperator::do_aggregation() {
 
   return rc;
 }
-RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const Value &val, int &count) {
+
+RC ProjectPhysicalOperator::compute_aggregation(FuncType type, Value &ans, const Value &val, int& count) {
   switch (type) {
-    case AGG_MIN: {
+    case FUNC_MIN: {
        // 初始化值
        if (ans.attr_type() == UNDEFINED) {
         ans.set_type(val.attr_type());
         ans.set_value(val);
         break;
        }
-       switch (val.attr_type()) {
-        case NULLS: {
-          break;
-        }
-        case CHARS: {
-          if (strcmp(ans.data(), val.data()) <= 0) { break; }
-          ans.set_data(val.data(), strlen(val.data()));
-          break;
-        }
-        case INTS: {
-          if (ans.get_int() <= val.get_int()) { break; }
-          ans.set_int(val.get_int());
-          break;
-        }
-        case DATES: {
-          if (ans.get_date() <= val.get_date()) { break; }
-          ans.set_date(val.get_date());
-          break;
-        }
-        case FLOATS: {
-          if (ans.get_float() <= val.get_float()) { break; }
-          ans.set_float(val.get_float());
-          break;
-        }
-        case BOOLEANS: {
-          if (ans.get_boolean() <= val.get_boolean()) { break; }
-          ans.set_boolean(val.get_boolean());
-          break;
-        }
+       if (val.attr_type() == NULLS) {
+        break;
        }
-       break;
-    }
-    case AGG_MAX: {
+       if (ans.attr_type() == NULLS) {
+        ans.set_value(val);
+       }
+       if (val.compare(ans) < 0) {
+        ans.set_value(val);
+       }
+    } break;
+    case FUNC_MAX: {
        if (ans.attr_type() == UNDEFINED) {
         ans.set_type(val.attr_type());
         ans.set_value(val);
         break;
        }
-       switch (val.attr_type()) {
-        case NULLS: {
-          break;
-        }
-        case CHARS: {
-          if (strcmp(ans.data(), val.data()) >= 0) { break; }
-          ans.set_data(val.data(), strlen(val.data()));
-          break;
-        }
-        case INTS: {
-          if (ans.get_int() >= val.get_int()) { break; }
-          ans.set_int(val.get_int());
-          break;
-        }
-        case DATES: {
-          if (ans.get_date() >= val.get_date()) { break; }
-          ans.set_date(val.get_date());
-          break;
-        }
-        case FLOATS: {
-          if (ans.get_float() >= val.get_float()) { break; }
-          ans.set_float(val.get_float());
-          break;
-        }
-        case BOOLEANS: {
-          if (ans.get_boolean() >= val.get_boolean()) { break; }
-          ans.set_boolean(val.get_boolean());
-          break;
-        }
+       if (val.attr_type() == NULLS) {
+        break;
+       }
+       if (ans.attr_type() == NULLS) {
+        ans.set_value(val);
+       }
+       if (val.compare(ans) > 0) {
+        ans.set_value(val);
        }
        break;
-    }
+    } break;
     // avg和sum都是先计算总值
-    case AGG_SUM:
-    case AGG_AVG: {
+    case FUNC_SUM:
+    case FUNC_AVG: {
        // 不支持boolean
        if (val.attr_type() == NULLS) {
         if (ans.attr_type() == UNDEFINED) {
@@ -247,8 +248,8 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
         else { return RC::INTERNAL; }
        }
        break;
-    }
-    case AGG_COUNT: {
+    } break;
+    case FUNC_COUNT: {
        if (val.attr_type() == NULLS) {
         if (ans.attr_type() == UNDEFINED) {
           ans.set_type(INTS);
@@ -263,7 +264,7 @@ RC ProjectPhysicalOperator::compute_aggregation(AggType type, Value &ans, const 
         ans.set_int(ans.get_int() + 1);
        }
     } break;
-    case AGG_WCOUNT:
+    case FUNC_WCOUNT:
     default: {
        if (ans.attr_type() == UNDEFINED) {
         ans.set_type(INTS);

@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include <iomanip>
 #include <regex>
+#include <cmath>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
@@ -65,6 +66,10 @@ Value::Value(date val) {
   set_date(val);
 }
 
+Value::Value(date val, std::string date_format) {
+  set_date(val, date_format);
+}
+
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -88,7 +93,6 @@ void Value::set_data(char *data, int length)
       length_ = length;
     } break;
     case NULLS: {
-      is_null = true;
       length_ = length;
     } break;
     default: {
@@ -109,6 +113,15 @@ void Value::set_float(float val)
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
+
+void Value::set_float(float val, int round)
+{
+  attr_type_ = FLOATS;
+  num_value_.float_value_ = std::round(val * pow(10, round_)) / pow(10, round_);
+  round_ = round;
+  length_ = sizeof(val);
+}
+
 void Value::set_boolean(bool val)
 {
   attr_type_ = BOOLEANS;
@@ -132,12 +145,20 @@ void Value::set_date(std::chrono::year_month_day val)
   date_value_ = val;
   length_ = strlen(date_to_string(date_value_));
 }
+
 void Value::set_null()
 {
   attr_type_ = NULLS;
-  is_null = true;
-  length_ = 4;
+  length_    = 4;
 }
+
+void Value::set_date(date val, std::string date_format) {
+  attr_type_ = DATES;
+  date_value_ = val;
+  date_format_ = date_format;
+  length_ = strlen(date_to_string(date_value_));
+}
+
 void Value::set_value(const Value &value)
 {
   switch (value.attr_type_) {
@@ -167,15 +188,15 @@ void Value::set_value(const Value &value)
 
 const char *Value::data() const
 {
-  if (is_null) {
-    return "\7\7\7";
-  }
   switch (attr_type_) {
     case CHARS: {
       return str_value_.c_str();
     } break;
     case DATES: {
       return date_to_string(date_value_);
+    } break;
+    case NULLS: {
+      return "\7\7\7";
     } break;
     default: {
       return (const char *)&num_value_;
@@ -186,16 +207,16 @@ const char *Value::data() const
 std::string Value::to_string() const
 {
   std::stringstream os;
-  if (is_null) {
-    os << "null";
-    return os.str();
-  }
   switch (attr_type_) {
     case INTS: {
       os << num_value_.int_value_;
     } break;
     case FLOATS: {
-      os << common::double_to_str(num_value_.float_value_);
+      if (round_ < 0) {
+        os << common::double_to_str(num_value_.float_value_);
+      } else {
+        os << common::double_to_str(std::round(num_value_.float_value_ * std::pow(10, round_)) / std::pow(10, round_));
+      }
     } break;
     case BOOLEANS: {
       os << num_value_.bool_value_;
@@ -205,6 +226,9 @@ std::string Value::to_string() const
     } break;
     case CHARS: {
       os << str_value_;
+    } break;
+    case NULLS: {
+      os << "null";
     } break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
@@ -445,13 +469,49 @@ date Value::get_date() const {
   return this->date_value_;
 }
 
-const char* Value::date_to_string(date val)
+const char *Value::date_to_string(date val) const
 {
   int yearValue = static_cast<int>(val.year());
   int monthValue = static_cast<unsigned>(val.month());
   int dayValue = static_cast<unsigned>(val.day());
+
+  std::istringstream format(date_format_);
+  std::vector<std::string> parts;
+  std::string part;
+  while (std::getline(format, part, '-')) {
+    if (part.size() != 2) {
+      LOG_WARN("unknown date format pattern: %s", part.c_str());
+      continue;
+    }
+    parts.push_back(part);
+  }
+
   std::stringstream ss;
-  ss << yearValue << "-" << std::setw(2) << std::setfill('0') << monthValue << "-" << std::setw(2) << std::setfill('0') << dayValue;
+  bool first = true;
+  for (auto s : parts) {
+    if (!first) {
+      ss << "-";
+    } else {
+      first = false;
+    }
+    switch (s[1]) {
+      case 'y': {
+        ss << std::setw(2) << std::setfill('0') << yearValue % 100;
+      } break;
+      case 'Y': {
+        ss << yearValue;
+      } break;
+      case 'm': {
+        ss << std::setw(2) << std::setfill('0') << monthValue;
+      } break;
+      case 'd': {
+        ss << std::setw(2) << std::setfill('0') << dayValue;
+      } break;
+      default: {
+        LOG_WARN("unknown date format pattern: %s", s.c_str());
+      } break;
+    }
+  }
 
   std::string date_string = ss.str();
 
@@ -479,4 +539,4 @@ date Value::string_to_date(const char * data, int length)
   std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
   return ymd;
 }
-
+std::string Value::get_date_format() const { return date_format_; }

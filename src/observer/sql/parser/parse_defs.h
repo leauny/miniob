@@ -29,17 +29,21 @@ struct UpdateSqlNode;
  */
 
 /**
- * @brief 描述聚合函数的类型
+ * @brief 描述函数的类型
  */
-enum AggType: int
+enum FuncType : int
 {
-  AGG_NONE = 0,
-  AGG_MIN,
-  AGG_MAX,
-  AGG_AVG,
-  AGG_SUM,
-  AGG_COUNT,
-  AGG_WCOUNT,  // 通配符版本count
+  FUNC_NONE = 0,
+  FUNC_MIN,
+  FUNC_MAX,
+  FUNC_AVG,
+  FUNC_SUM,
+  FUNC_COUNT,
+  FUNC_WCOUNT,  // 通配符版本count
+  FUNC_AGG_END,
+  FUNC_LENGTH,
+  FUNC_ROUND,
+  FUNC_DATE_FORMAT,
 };
 
 /**
@@ -51,9 +55,11 @@ enum AggType: int
  */
 struct RelAttrSqlNode
 {
-  AggType agg_type{AGG_NONE};  ///< aggregation type            聚合函数类型，默认为NONE代表非聚合函数
-  std::string relation_name;   ///< relation name (may be NULL) 表名
-  std::string attribute_name;  ///< attribute name              属性名
+  FuncType func_type{FUNC_NONE};    ///< function type            函数类型，默认为NONE代表非聚合函数
+  std::string func_parm{};          ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
+  std::string relation_name{};      ///< relation name (may be NULL) 表名, 也可以是别名
+  std::string attribute_name{};     ///< attribute name              属性名
+  std::string alias{};              ///< alias name                  别名
 };
 
 /**
@@ -115,10 +121,19 @@ struct JoinSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<std::string>        relations;     ///< 查询的表
-  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
-  std::vector<std::vector<Value>> query_values; ///< 子查询的结果
+  // TODO: attributes更换为FieldExpr
+  std::vector<RelAttrSqlNode>     attributes;       ///< attributes in select clause
+  std::vector<std::string>        relations;        ///< 查询的表
+  std::vector<std::string>        relations_alias;  ///< 查询的表的别名
+  // TODO: conditions更改为ConjunctionExpr
+  // 如 where 1 and c > 2
+  // |- ConjunctionExpr (1)
+  // L  ConjunctionExpr (c > 2)
+  //     L  ComparisonExpr (c > 2)
+  //         |- FieldExpr      (c)
+  //         L  ArithmeticExpr (2)
+  std::vector<ConditionSqlNode>   conditions;       ///< 查询条件，使用AND串联起来多个条件
+  std::vector<std::vector<Value>> query_values;     ///< 子查询的结果
   bool is_subquery{false}; ///< 是否是子查询
 };
 
@@ -189,6 +204,16 @@ struct CreateTableSqlNode
 struct DropTableSqlNode
 {
   std::string relation_name;  ///< 要删除的表名
+};
+
+/**
+ * @brief 描述一个show index语句
+ * @ingroup SQLParser
+ * @details 查询索引时，需要指定表名。
+ */
+struct ShowIndexSqlNode
+{
+  std::string relation_name;   ///< Relation name
 };
 
 /**
@@ -290,6 +315,7 @@ enum SqlCommandFlag
   SCF_DROP_INDEX,
   SCF_SYNC,
   SCF_SHOW_TABLES,
+  SCF_SHOW_INDEX,
   SCF_DESC_TABLE,
   SCF_BEGIN,        ///< 事务开始语句，可以在这里扩展只读事务
   SCF_COMMIT,
@@ -317,6 +343,7 @@ public:
   UpdateSqlNode             update;
   CreateTableSqlNode        create_table;
   DropTableSqlNode          drop_table;
+  ShowIndexSqlNode          show_index;
   CreateIndexSqlNode        create_index;
   DropIndexSqlNode          drop_index;
   DescTableSqlNode          desc_table;
@@ -336,6 +363,7 @@ public:
     update = other.update;
     create_table = other.create_table;
     drop_table = other.drop_table;
+    show_index = other.show_index;
     create_index = other.create_index;
     drop_index = other.drop_index;
     desc_table = other.desc_table;

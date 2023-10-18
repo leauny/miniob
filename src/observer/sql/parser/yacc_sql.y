@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cmath>
 #include <algorithm>
 #include <string>
 #include <sstream>
@@ -92,10 +93,14 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         AND
         SET
         ON
+        AS
         LOAD
         DATA
         INFILE
         EXPLAIN
+        LENGTH
+        ROUND
+        DATE_FORMAT
         EQ
         LT
         GT
@@ -119,7 +124,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                                       value;
   std::vector<Value> *                          record;
   enum CompOp                                   comp;
-  enum AggType                                  agg_t;
+  enum FuncType                                 func_t;
   RelAttrSqlNode *                              rel_attr;
   std::vector<AttrInfoSqlNode> *                attr_infos;
   AttrInfoSqlNode *                             attr_info;
@@ -129,7 +134,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::vector<Value>> *             record_list;
   std::vector<ConditionSqlNode> *               condition_list;
   std::vector<RelAttrSqlNode> *                 rel_attr_list;
-  std::vector<std::string> *                    relation_list;
+  std::vector<std::vector<std::string>> *       relation_list;   // relation_name, alias
   std::vector<UpdateField> *                    update_list;
   std::vector<JoinSqlNode> *                    join_list;
   char *                                        string;
@@ -143,7 +148,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
-%token <agg_t>  AGG
+%token <func_t> AGG
 %token <dates>  DATE
 //非终结符
 
@@ -177,6 +182,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            create_table_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
+%type <sql_node>            show_index_stmt
 %type <sql_node>            desc_table_stmt
 %type <sql_node>            create_index_stmt
 %type <sql_node>            drop_index_stmt
@@ -215,6 +221,7 @@ command_wrapper:
   | create_table_stmt
   | drop_table_stmt
   | show_tables_stmt
+  | show_index_stmt
   | desc_table_stmt
   | create_index_stmt
   | drop_index_stmt
@@ -274,6 +281,13 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
 show_tables_stmt:
     SHOW TABLES {
       $$ = new ParsedSqlNode(SCF_SHOW_TABLES);
+    }
+    ;
+
+show_index_stmt:
+    SHOW INDEX FROM ID {
+      $$ = new ParsedSqlNode(SCF_SHOW_INDEX);
+      $$->show_index.relation_name = $4;
     }
     ;
 
@@ -469,6 +483,33 @@ value:
       $$->set_null();
       @$ = @1;
     }
+    | LENGTH LBRACE value RBRACE
+    {
+        if ($3->attr_type() != AttrType::CHARS) {
+          LOG_ERROR("length function only support string type.");
+          return -1;
+        }
+        $$ = new Value((int)$3->get_string().size());  // translate into int
+        free($3);
+    }
+    | ROUND LBRACE value COMMA number RBRACE
+    {
+        if ($3->attr_type() != AttrType::FLOATS) {
+          LOG_ERROR("round function only support float type.");
+          return -1;
+        }
+        $$ = new Value((float)(std::round($3->get_float() * pow(10, $5)) / pow(10, $5)));
+        free($3);
+    }
+    | DATE_FORMAT LBRACE value COMMA SSS RBRACE
+    {
+        if ($3->attr_type() != AttrType::DATES) {
+          LOG_ERROR("data_format function only support date type.");
+          return -1;
+        }
+        $$ = new Value((date)$3->get_date(), common::substr($5,1,strlen($5)-2));
+        free($3);
+    }
     ;
     
 delete_stmt:    /*  delete 语句的语法解析树*/
@@ -543,17 +584,68 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
-        $$->selection.relations.swap(*$5);
+        $$->selection.relations = (*$5)[0];
+        $$->selection.relations_alias = (*$5)[1];
         delete $5;
       }
       $$->selection.relations.push_back($4);
+      $$->selection.relations_alias.push_back({});  // 无别名
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
+      free($4);
 
       if ($6 != nullptr) {
         $$->selection.conditions.swap(*$6);
         delete $6;
       }
+    }
+    | SELECT select_attr FROM ID ID rel_list where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      if ($6 != nullptr) {
+        $$->selection.relations = (*$6)[0];
+        $$->selection.relations_alias = (*$6)[1];
+        delete $6;
+      }
+      $$->selection.relations.push_back($4);
+      $$->selection.relations_alias.push_back($5);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
       free($4);
+      free($5);
+
+      if ($7 != nullptr) {
+        $$->selection.conditions.swap(*$7);
+        delete $7;
+      }
+    }
+    | SELECT select_attr FROM ID AS ID rel_list where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      if ($7 != nullptr) {
+        $$->selection.relations = (*$7)[0];
+        $$->selection.relations_alias = (*$7)[1];
+        delete $7;
+      }
+      $$->selection.relations.push_back($4);
+      $$->selection.relations_alias.push_back($6);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
+      free($4);
+      free($6);
+
+      if ($8 != nullptr) {
+        $$->selection.conditions.swap(*$8);
+        delete $8;
+      }
     }
     | SELECT select_attr FROM ID join_stmt where
     {
@@ -585,7 +677,7 @@ select_attr:
       if ($2 != nullptr) {
         $$ = $2;
       } else {
-      $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<RelAttrSqlNode>;
       }
       RelAttrSqlNode attr;
       attr.relation_name  = "";
@@ -609,6 +701,20 @@ rel_attr:
       $$->attribute_name = $1;
       free($1);
     }
+    | rel_attr ID {
+        // alias
+        $$ = $1;
+        $$->alias = $2;
+        free($2);
+        LOG_DEBUG("alias: %s", $$->alias.c_str());
+    }
+    | rel_attr AS ID {
+        // alias
+        $$ = $1;
+        $$->alias = $3;
+        free($3);
+        LOG_DEBUG("alias: %s", $$->alias.c_str());
+    }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = $1;
@@ -620,15 +726,30 @@ rel_attr:
       $$ = new RelAttrSqlNode;
       $$->relation_name  = "";
       $$->attribute_name = "*";
-      if ($1 != AGG_COUNT) {
+      if ($1 != FUNC_COUNT) {
         LOG_ERROR("Aggregation * only support count(*).");
         return -1;
       }
-      $$->agg_type = AGG_WCOUNT;  // 通配符版本的count
+      $$->func_type = FUNC_WCOUNT;  // 通配符版本的count
     }
     | AGG LBRACE rel_attr RBRACE {
       $$ = $3;
-      $$->agg_type = $1;
+      $$->func_type = $1;
+    }
+    | LENGTH LBRACE rel_attr RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_LENGTH;
+    }
+    | ROUND LBRACE rel_attr COMMA number RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_ROUND;
+      $$->func_parm = std::to_string($5);
+    }
+    | DATE_FORMAT LBRACE rel_attr COMMA SSS RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_DATE_FORMAT;
+      $$->func_parm = common::substr($5,1,strlen($5)-2);
+      free($5);
     }
     ;
 
@@ -658,11 +779,36 @@ rel_list:
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<std::string>;
+        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
       }
 
-      $$->push_back($2);
+      (*$$)[0].push_back($2);
+      (*$$)[1].push_back({});
       free($2);
+    }
+    | COMMA ID ID rel_list {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
+      }
+
+      (*$$)[0].push_back($2);
+      (*$$)[1].push_back($3);
+      free($2);
+      free($3);
+    }
+    | COMMA ID AS ID rel_list {
+      if ($5 != nullptr) {
+        $$ = $5;
+      } else {
+        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
+      }
+
+      (*$$)[0].push_back($2);
+      (*$$)[1].push_back($4);
+      free($2);
+      free($4);
     }
     ;
 where:
@@ -691,25 +837,17 @@ condition_list:
     }
     ;
 condition:
-    rel_attr comp_op value
+    rel_attr comp_op expression
     {
+
+      auto value_r = Value();
+      $3->try_get_value(value_r);
+
       $$ = new ConditionSqlNode;
       $$->left_is_attr = 1;
       $$->left_attr = *$1;
       $$->right_is_attr = 0;
-      $$->right_value = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
-    }
-    | value comp_op value
-    {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = *$3;
+      $$->right_value = value_r;
       $$->comp = $2;
 
       delete $1;
@@ -727,13 +865,34 @@ condition:
       delete $1;
       delete $3;
     }
-    | value comp_op rel_attr
+    | expression comp_op rel_attr
     {
+      auto value_l = Value();
+      $1->try_get_value(value_l);
+
       $$ = new ConditionSqlNode;
       $$->left_is_attr = 0;
-      $$->left_value = *$1;
+      $$->left_value = value_l;
       $$->right_is_attr = 1;
       $$->right_attr = *$3;
+      $$->comp = $2;
+
+      delete $1;
+      delete $3;
+    }
+    | expression comp_op expression
+    {
+      // 直接获取表达式的值, 只支持ArithmeticExpr或ValueExpr
+      auto value_l = Value();
+      auto value_r = Value();
+      $1->try_get_value(value_l);
+      $3->try_get_value(value_r);
+
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value = value_l;
+      $$->right_is_attr = 0;
+      $$->right_value = value_r;
       $$->comp = $2;
 
       delete $1;

@@ -36,3 +36,6 @@ const char *Field::get_data(const Record &record)
 {
   return record.data() + field_->offset();
 }
+const char *Field::get_alias() const {
+  return alias_.c_str();
+}
