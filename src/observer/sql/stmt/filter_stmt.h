@@ -101,6 +101,7 @@ public:
   }
 
 public:
+  // TODO: 将ConditionSqlNode转换为FilterUnit
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
 
@@ -108,5 +109,6 @@ public:
       const ConditionSqlNode &condition, FilterUnit *&filter_unit);
 
 private:
+  // TODO: 改为Expression, 直接在解析层面创建ast
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
 };

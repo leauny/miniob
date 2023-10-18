@@ -113,9 +113,17 @@ struct ConditionSqlNode
 
 struct SelectSqlNode
 {
+  // TODO: attributes更换为FieldExpr
   std::vector<RelAttrSqlNode>     attributes;       ///< attributes in select clause
   std::vector<std::string>        relations;        ///< 查询的表
   std::vector<std::string>        relations_alias;  ///< 查询的表的别名
+  // TODO: conditions更改为ConjunctionExpr
+  // 如 where 1 and c > 2
+  // |- ConjunctionExpr (1)
+  // L  ConjunctionExpr (c > 2)
+  //     L  ComparisonExpr (c > 2)
+  //         |- FieldExpr      (c)
+  //         L  ArithmeticExpr (2)
   std::vector<ConditionSqlNode>   conditions;       ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::vector<Value>> query_values;     ///< 子查询的结果
   bool is_subquery{false}; ///< 是否是子查询
