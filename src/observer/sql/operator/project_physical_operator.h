@@ -32,7 +32,7 @@ public:
   {
     
   }
-  void add_projection(const Table *table, const FieldMeta *field, FuncType type, std::string func_parm);
+  void add_projection(const Table *table, const FieldMeta *field, const std::string& alias, FuncType type, std::string func_parm);
 
   PhysicalOperatorType type() const override
   {

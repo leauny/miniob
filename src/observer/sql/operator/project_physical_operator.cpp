@@ -121,7 +121,7 @@ Tuple *ProjectPhysicalOperator::current_tuple_norm()
 }
 
 void ProjectPhysicalOperator::add_projection(
-    const Table *table, const FieldMeta *field_meta, FuncType type, std::string func_parm)
+    const Table *table, const FieldMeta *field_meta, const std::string& alias, FuncType type, std::string func_parm)
 {
   ASSERT(has_agg_ && !(type > FUNC_NONE && type < FUNC_AGG_END), "Mixed selection.");
   if (type > FUNC_NONE && type < FUNC_AGG_END){
@@ -129,7 +129,8 @@ void ProjectPhysicalOperator::add_projection(
   }
   // 对单表来说，展示的(alias) 字段总是字段名称，
   // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name(), type, func_parm);
+  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(),
+      alias == "" ? field_meta->name() : alias.c_str(), type, func_parm);
   tuple_.add_cell_spec(spec);
 }
 

@@ -47,6 +47,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
+    // TODO: 表的别名
     const char *table_name = select_sql.relations[i].c_str();
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
@@ -86,7 +87,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         }
         Table *table = tables[0];
         const FieldMeta *field_meta = table->table_meta().field(0);
-        query_fields.push_back(Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm));
+        auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
+        field.set_alias(relation_attr.alias);
+        query_fields.push_back(field);
       } else {
           for (Table *table : tables) {
             wildcard_fields(table, query_fields);
@@ -126,7 +129,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
               (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
             return RC::SCHEMA_WRONG_FUNC;
           }
-          query_fields.push_back(Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm));
+          auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
+          field.set_alias(relation_attr.alias);
+          query_fields.push_back(field);
         }
       }
     } else {
@@ -148,7 +153,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
         return RC::SCHEMA_WRONG_FUNC;
       }
-      query_fields.push_back(Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm));
+      auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
+      field.set_alias(relation_attr.alias);
+      query_fields.push_back(field);
     }
   }
 

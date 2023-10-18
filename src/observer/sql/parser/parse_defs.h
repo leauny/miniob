@@ -55,10 +55,11 @@ enum FuncType : int
  */
 struct RelAttrSqlNode
 {
-  FuncType func_type{FUNC_NONE};  ///< function type            函数类型，默认为NONE代表非聚合函数
-  std::string func_parm{};        ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
-  std::string relation_name;      ///< relation name (may be NULL) 表名
-  std::string attribute_name;     ///< attribute name              属性名
+  FuncType func_type{FUNC_NONE};    ///< function type            函数类型，默认为NONE代表非聚合函数
+  std::string func_parm{};          ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
+  std::string relation_name{};      ///< relation name (may be NULL) 表名, 也可以是别名
+  std::string attribute_name{};     ///< attribute name              属性名
+  std::string alias{};              ///< alias name                  别名
 };
 
 /**
@@ -112,10 +113,11 @@ struct ConditionSqlNode
 
 struct SelectSqlNode
 {
-  std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<std::string>        relations;     ///< 查询的表
-  std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
-  std::vector<std::vector<Value>> query_values; ///< 子查询的结果
+  std::vector<RelAttrSqlNode>     attributes;       ///< attributes in select clause
+  std::vector<std::string>        relations;        ///< 查询的表
+  std::vector<std::string>        relations_alias;  ///< 查询的表的别名
+  std::vector<ConditionSqlNode>   conditions;       ///< 查询条件，使用AND串联起来多个条件
+  std::vector<std::vector<Value>> query_values;     ///< 子查询的结果
   bool is_subquery{false}; ///< 是否是子查询
 };
 

@@ -88,28 +88,29 @@ extern int yydebug;
     AND = 289,                     /* AND  */
     SET = 290,                     /* SET  */
     ON = 291,                      /* ON  */
-    LOAD = 292,                    /* LOAD  */
-    DATA = 293,                    /* DATA  */
-    INFILE = 294,                  /* INFILE  */
-    EXPLAIN = 295,                 /* EXPLAIN  */
-    LENGTH = 296,                  /* LENGTH  */
-    ROUND = 297,                   /* ROUND  */
-    DATE_FORMAT = 298,             /* DATE_FORMAT  */
-    EQ = 299,                      /* EQ  */
-    LT = 300,                      /* LT  */
-    GT = 301,                      /* GT  */
-    LE = 302,                      /* LE  */
-    GE = 303,                      /* GE  */
-    NE = 304,                      /* NE  */
-    LIKE = 305,                    /* LIKE  */
-    NOT_LIKE = 306,                /* NOT_LIKE  */
-    NUMBER = 307,                  /* NUMBER  */
-    FLOAT = 308,                   /* FLOAT  */
-    ID = 309,                      /* ID  */
-    SSS = 310,                     /* SSS  */
-    AGG = 311,                     /* AGG  */
-    DATE = 312,                    /* DATE  */
-    UMINUS = 313                   /* UMINUS  */
+    AS = 292,                      /* AS  */
+    LOAD = 293,                    /* LOAD  */
+    DATA = 294,                    /* DATA  */
+    INFILE = 295,                  /* INFILE  */
+    EXPLAIN = 296,                 /* EXPLAIN  */
+    LENGTH = 297,                  /* LENGTH  */
+    ROUND = 298,                   /* ROUND  */
+    DATE_FORMAT = 299,             /* DATE_FORMAT  */
+    EQ = 300,                      /* EQ  */
+    LT = 301,                      /* LT  */
+    GT = 302,                      /* GT  */
+    LE = 303,                      /* LE  */
+    GE = 304,                      /* GE  */
+    NE = 305,                      /* NE  */
+    LIKE = 306,                    /* LIKE  */
+    NOT_LIKE = 307,                /* NOT_LIKE  */
+    NUMBER = 308,                  /* NUMBER  */
+    FLOAT = 309,                   /* FLOAT  */
+    ID = 310,                      /* ID  */
+    SSS = 311,                     /* SSS  */
+    AGG = 312,                     /* AGG  */
+    DATE = 313,                    /* DATE  */
+    UMINUS = 314                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -118,7 +119,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 113 "yacc_sql.y"
+#line 114 "yacc_sql.y"
 
   ParsedSqlNode *                               sql_node;
   ConditionSqlNode *                            condition;
@@ -135,14 +136,14 @@ union YYSTYPE
   std::vector<std::vector<Value>> *             record_list;
   std::vector<ConditionSqlNode> *               condition_list;
   std::vector<RelAttrSqlNode> *                 rel_attr_list;
-  std::vector<std::string> *                    relation_list;
+  std::vector<std::vector<std::string>> *       relation_list;   // relation_name, alias
   std::vector<UpdateField> *                    update_list;
   char *                                        string;
   int                                           number;
   float                                         floats;
   date                                          dates;
 
-#line 146 "yacc_sql.hpp"
+#line 147 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

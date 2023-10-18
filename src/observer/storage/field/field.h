@@ -74,9 +74,13 @@ public:
   {
     this->field_ = field;
   }
-
+  void set_alias(const std::string& alias)
+  {
+    this->alias_ = alias;
+  }
   void set_int(Record &record, int value);
   int  get_int(const Record &record);
+  const char *get_alias() const;
 
   const char *get_data(const Record &record);
 
@@ -85,4 +89,5 @@ private:
   const FieldMeta *field_ = nullptr;
   FuncType         function_ = FUNC_NONE;
   std::string      func_parm_;
+  std::string      alias_;
 };
