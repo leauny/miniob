@@ -311,11 +311,8 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       create_index.attribute_names.swap(*$7);
       if (create_index.attribute_names.size() > 1) {
         create_index.is_multi_index = true;
-      } else if (create_index.attribute_names.size() == 1) {
-        create_index.attribute_name = create_index.attribute_names[0];
-      } else {
-        LOG_ERROR("create index must have at least one attribute.");
       }
+      create_index.attribute_name = create_index.attribute_names[0];
       free($3);
       free($5);
       free($7);
