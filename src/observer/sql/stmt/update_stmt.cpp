@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 #include "sql/stmt/filter_stmt.h"
+#include "event/sql_debug.h"
 
 UpdateStmt::UpdateStmt(Table *table, const std::vector<std::pair<Value, int>>& valuesAndOffsets, FilterStmt *filterStmt)
     : table_(table), values_and_offsets_(valuesAndOffsets), filter_stmt_(filterStmt) {}
@@ -54,6 +55,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       if (field_meta->nullable() && value_type == NULLS) {
         // do nothing, skip the type check and convert
       } else if (!field_meta->nullable() && value_type == NULLS) {
+        sql_debug("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+          table_name, field_meta->name(), field_type, value_type);
         LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
           table_name, field_meta->name(), field_type, value_type);
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;

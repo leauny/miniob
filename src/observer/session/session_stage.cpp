@@ -168,10 +168,12 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           return rc;
         }
         if (subquery->sql_node()->selection.query_values.empty()) {
+          sql_debug("subquery result is null!");
           Value new_value;
           new_value.set_null();
           field.value = new_value;
         } else if (subquery->sql_node()->selection.query_values.size() > 1 || subquery->sql_node()->selection.query_values[0].size() > 1) {
+          sql_debug("subquery result is not a single value!");
           LOG_TRACE("subquery result is not a single value");
           sql_result->set_return_code(RC::INTERNAL);
           return RC::INTERNAL;
