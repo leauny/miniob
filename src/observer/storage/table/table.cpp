@@ -489,10 +489,23 @@ RC Table::delete_record(const Record &record)
 
 RC Table::update_record(const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
 {
-  for (auto& [value, offset] : values_and_offsets) {
-    memcpy(record.data() + offset, value.data(), value.length());
+  RC rc = RC::SUCCESS;
+  Record update_record = record;
+  // delete old record
+  rc = delete_record(record);
+  if (OB_FAIL(rc)) {
+    LOG_ERROR("Failed to delete old record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
+    return rc;
   }
-  return RC::SUCCESS;
+  for (auto& [value, offset] : values_and_offsets) {
+    memcpy(update_record.data() + offset, value.data(), value.length());
+  }
+  rc = insert_record(update_record);
+  if (OB_FAIL(rc)) {
+    LOG_ERROR("Failed to insert new record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
+    return rc;
+  }
+  return rc;
 }
 
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
