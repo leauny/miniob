@@ -30,6 +30,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/index/bplus_tree_index.h"
 #include "storage/trx/trx.h"
 #include "event/sql_debug.h"
+#include "sql/expr/tuple.h"
 
 Table::~Table()
 {
@@ -221,7 +222,6 @@ RC Table::open(const char *meta_file, const char *base_dir)
 
 RC Table::insert_record(Record &record)
 {
-  sql_debug("insert record: %s", record.data());
   RC rc = RC::SUCCESS;
   rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
   if (rc != RC::SUCCESS) {

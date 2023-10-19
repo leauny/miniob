@@ -35,13 +35,22 @@ public:
           index_name_(index_name)
   {}
 
+  explicit CreateIndexStmt(Table *table, std::vector<const FieldMeta*> field_metas, const std::string &index_name)
+        : table_(table),
+          field_metas_(field_metas),
+          index_name_(index_name),
+          is_multi_index_(true)
+  {}
+
   virtual ~CreateIndexStmt() = default;
 
   StmtType type() const override { return StmtType::CREATE_INDEX; }
 
   Table *table() const { return table_; }
   const FieldMeta *field_meta() const { return field_meta_; }
+  std::vector<const FieldMeta *> field_metas() const { return field_metas_; }
   const std::string &index_name() const { return index_name_; }
+  bool is_multi_index() const { return is_multi_index_; }
 
 public:
   static RC create(Db *db, const CreateIndexSqlNode &create_index, Stmt *&stmt);
@@ -49,5 +58,7 @@ public:
 private:
   Table *table_ = nullptr;
   const FieldMeta *field_meta_ = nullptr;
+  std::vector<const FieldMeta *> field_metas_;
   std::string index_name_;
+  bool is_multi_index_{false};
 };

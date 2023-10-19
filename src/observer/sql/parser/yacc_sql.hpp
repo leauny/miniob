@@ -144,13 +144,14 @@ union YYSTYPE
   std::vector<std::vector<std::string>> *       relation_list;   // relation_name, alias
   std::vector<UpdateField> *                    update_list;
   std::vector<JoinSqlNode> *                    join_list;
+  std::vector<std::string> *                    field_list;
   char *                                        string;
   int                                           number;
   float                                         floats;
   date                                          dates;
   bool                                          bools;
 
-#line 154 "yacc_sql.hpp"
+#line 155 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
