@@ -17,9 +17,11 @@
 #include "sql/expr/expression.h"
 #include "sql/parser/yacc_sql.hpp"
 #include "sql/parser/lex_sql.h"
-#include "sql/expr/expression.h"
+#include "storage/db/db.h"
 
 using namespace std;
+
+static Db* __current_db;
 
 string token_name(const char *sql_string, YYLTYPE *llocp)
 {
@@ -34,6 +36,12 @@ int yyerror(YYLTYPE *llocp, const char *sql_string, ParsedSqlResult *sql_result,
   error_sql_node->error.column = llocp->first_column;
   sql_result->add_sql_node(std::move(error_sql_node));
   return 0;
+}
+
+FieldExpr *create_filed_expr(const RelAttrSqlNode &node) {
+  Table* table = __current_db->find_table(node.relation_name.c_str());
+  const FieldMeta* field = table->table_meta().field(node.attribute_name.c_str());
+  return new FieldExpr(table, field);
 }
 
 ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
@@ -1002,11 +1010,13 @@ opt_semicolon: /*empty*/
 //_____________________________________________________________________
 extern void scan_string(const char *str, yyscan_t scanner);
 
-int sql_parse(const char *s, ParsedSqlResult *sql_result) {
+int sql_parse(Db* db, const char *s, ParsedSqlResult *sql_result) {
+  __current_db = db;
   yyscan_t scanner;
   yylex_init(&scanner);
   scan_string(s, scanner);
   int result = yyparse(s, sql_result, scanner);
   yylex_destroy(scanner);
+  __current_db = nullptr;
   return result;
 }
