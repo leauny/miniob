@@ -73,23 +73,23 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // 构建FieldExpr
   if (tables.size() == 1) {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      rc = build_field(select_sql.attributes[i], tables[0]);
+      rc = FieldExpr::build_field(select_sql.attributes[i], tables[0]);
       if(OB_FAIL(rc)) { return rc; };
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = build_field(condition, tables[0]);
+      rc = FieldExpr::build_field(condition, tables[0]);
       if(OB_FAIL(rc)) { return rc; };
     }
 
   } else {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      rc = build_field(select_sql.attributes[i], db);
+      rc = FieldExpr::build_field(select_sql.attributes[i], db);
       if(OB_FAIL(rc)) { return rc; };
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = build_field(condition, db);
+      rc = FieldExpr::build_field(condition, db);
       if(OB_FAIL(rc)) { return rc; };
     }
   }
@@ -159,85 +159,5 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
-  return RC::SUCCESS;
-}
-
-RC SelectStmt::build_field(Expression *expr, Table *table) {
-  RC rc = RC::SUCCESS;
-  switch (expr->type()) {
-    case ExprType::FIELD: {
-      rc = create_field_expr(expr, table);
-      if(OB_FAIL(rc)) { return rc; };
-    }break;
-    case ExprType::COMPARISON: {
-        auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
-        rc = build_field(comparison_expr->left().get(), table);
-        if(OB_FAIL(rc)) { return rc; };
-        rc = build_field(comparison_expr->right().get(), table);
-        if(OB_FAIL(rc)) { return rc; };
-    }break;
-    case ExprType::CONJUNCTION: {
-        for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
-          rc = build_field(expression.get(), table);
-          if(OB_FAIL(rc)) { return rc; };
-        }
-    } break;
-    case ExprType::ARITHMETIC: {
-        auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
-        rc = build_field(arithmetic_expr->left().get(), table);
-        if(OB_FAIL(rc)) { return rc; };
-        rc = build_field(arithmetic_expr->right().get(), table);
-        if(OB_FAIL(rc)) { return rc; };
-    }break;
-  }
-  return rc;
-}
-
-// multi-table
-RC SelectStmt::build_field(Expression *expr, Db* db) {
-  RC rc = RC::SUCCESS;
-  switch (expr->type()) {
-    case ExprType::FIELD: {
-        auto field_expr = dynamic_cast<FieldExpr*>(expr);
-        auto table = db->find_table(field_expr->get_node().relation_name.c_str());
-        rc = create_field_expr(expr, table);
-        if(OB_FAIL(rc)) { return rc; };
-    }break;
-    case ExprType::COMPARISON: {
-        auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
-        rc = build_field(comparison_expr->left().get(), db);
-        if(OB_FAIL(rc)) { return rc; };
-        rc = build_field(comparison_expr->right().get(), db);
-        if(OB_FAIL(rc)) { return rc; };
-    }break;
-    case ExprType::CONJUNCTION: {
-        for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
-          rc = build_field(expression.get(), db);
-          if(OB_FAIL(rc)) { return rc; };
-        }
-    } break;
-    case ExprType::ARITHMETIC: {
-        auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
-        rc = build_field(arithmetic_expr->left().get(), db);
-        if(OB_FAIL(rc)) { return rc; };
-        rc = build_field(arithmetic_expr->right().get(), db);
-        if(OB_FAIL(rc)) { return rc; };
-    }break;
-  }
-  return rc;
-}
-
-RC SelectStmt::create_field_expr(Expression *expr, Table *table) {
-  auto field_expr = dynamic_cast<FieldExpr*>(expr);
-  if (field_expr == nullptr) {
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-  auto attribute_name = field_expr->get_node().attribute_name;
-  auto field_meta = table->table_meta().field(attribute_name.c_str());
-  if (!field_meta) {
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-  Field field(table, field_meta);
-  field_expr->set_field(field);
   return RC::SUCCESS;
 }

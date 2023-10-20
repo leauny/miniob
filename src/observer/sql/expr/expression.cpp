@@ -22,6 +22,87 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
+RC FieldExpr::build_field(Expression *expr, Table *table) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      rc = create_field_expr(expr, table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+      auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = build_field(comparison_expr->left().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(comparison_expr->right().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+      for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+        rc = build_field(expression.get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = build_field(arithmetic_expr->left().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(arithmetic_expr->right().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+  }
+  return rc;
+}
+
+// multi-table
+RC FieldExpr::build_field(Expression *expr, Db* db) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      auto field_expr = dynamic_cast<FieldExpr*>(expr);
+      auto table = db->find_table(field_expr->get_node().relation_name.c_str());
+      rc = create_field_expr(expr, table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+      auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = build_field(comparison_expr->left().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(comparison_expr->right().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+      for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+        rc = build_field(expression.get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = build_field(arithmetic_expr->left().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(arithmetic_expr->right().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+  }
+  return rc;
+}
+
+RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
+  auto field_expr = dynamic_cast<FieldExpr*>(expr);
+  if (field_expr == nullptr) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  auto attribute_name = field_expr->get_node().attribute_name;
+  auto field_meta = table->table_meta().field(attribute_name.c_str());
+  if (!field_meta) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  Field field(table, field_meta);
+  field_expr->set_field(field);
+  return RC::SUCCESS;
+}
+
+
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;

@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "common/log/log.h"
 
+class Db;
 class Tuple;
 
 /**
@@ -162,6 +163,10 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
 
   RelAttrSqlNode& get_node() { return node_; }
+
+  static RC build_field(Expression *expr, Table *table);
+  static RC build_field(Expression *expr, Db* db);  // multi-table
+  static RC create_field_expr(Expression *expr, Table *table);
 
 private:
   Field field_;
