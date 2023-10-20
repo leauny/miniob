@@ -93,24 +93,18 @@ class FilterStmt
 {
 public:
   FilterStmt() = default;
-  virtual ~FilterStmt();
+  ~FilterStmt() = default;
 
 public:
-  const std::vector<Expression *> &filter_units() const
+  std::vector<std::unique_ptr<Expression>> &filter_expr()
   {
-    return filter_units_;
+    return filter_expr_;
   }
 
 public:
-  // TODO: 将ConditionSqlNode转换为FilterUnit
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const std::vector<Expression*> conditions, FilterStmt *&stmt);
 
-  static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      Expression *condition, FilterUnit *&filter_unit);
-
 private:
-  // TODO: 改为Expression, 直接在解析层面创建ast
-  std::vector<Expression *> filter_units_;  // 默认当前都是AND关系
-  Expression* filter_expr_ = nullptr;       // 将数组中的ConjunctionExpr合并为一个ConjunctionExpr
+  std::vector<std::unique_ptr<Expression>> filter_expr_;  // 默认当前都是AND关系
 };

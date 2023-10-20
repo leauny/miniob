@@ -118,12 +118,16 @@ RC LogicalPlanGenerator::create_plan(
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables = select_stmt->tables();
-  const std::vector<Field> &all_fields = select_stmt->query_fields();
+  const std::vector<Expression*> &all_exprs = select_stmt->query_exprs();
   for (Table *table : tables) {
     std::vector<Field> fields;
-    for (const Field &field : all_fields) {
-      if (0 == strcmp(field.table_name(), table->name())) {
-        fields.push_back(field);  // 按照表来遍历，找到属与当前表中的field
+    for (const auto &expr : all_exprs) {
+      if (expr->type() != ExprType::FIELD) {
+        continue;
+      }
+      auto field_expr = dynamic_cast<FieldExpr*>(expr);
+      if (0 == strcmp(field_expr->field().table_name(), table->name())) {
+        fields.push_back(field_expr->field());  // 按照表来遍历，找到属与当前表中的field
       }
     }
 
@@ -149,7 +153,7 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   // 创建project operator
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
+  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_exprs));
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));
@@ -168,17 +172,10 @@ RC LogicalPlanGenerator::create_plan(
 RC LogicalPlanGenerator::create_plan(
     FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  // TODO: 学习这的EXPRESSION
-  std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<Expression *> filter_units = filter_stmt->filter_units();
-  for (Expression *filter_unit : filter_units) {
-    cmp_exprs.emplace_back(filter_unit);
-  }
-
   unique_ptr<PredicateLogicalOperator> predicate_oper;
-  if (!cmp_exprs.empty()) {
-    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
-    predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
+  if (!filter_stmt->filter_expr().empty()) {
+    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, filter_stmt->filter_expr()));
+    predicate_oper = std::make_unique<PredicateLogicalOperator>(std::move(conjunction_expr));
   }
 
   logical_operator = std::move(predicate_oper);

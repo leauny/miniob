@@ -129,7 +129,8 @@ private:
 class FieldExpr : public Expression 
 {
 public:
-  FieldExpr() = default;
+  FieldExpr() = delete;
+  FieldExpr(RelAttrSqlNode node) : node_(node) {}
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field)
   {}
   FieldExpr(const Field &field) : field_(field)
@@ -148,14 +149,23 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
+  void set_field(Field field) { field_ = field; }
+
   void set_func_type(FuncType func_type) { func_type_ = func_type; }
+
+  FuncType get_func_type() { return func_type_; }
 
   void set_func_parm(const std::string& value) { func_parm_ = value; }
 
+  std::string get_func_parm() { return func_parm_; }
+
   RC get_value(const Tuple &tuple, Value &value) const override;
+
+  RelAttrSqlNode& get_node() { return node_; }
 
 private:
   Field field_;
+  RelAttrSqlNode node_;
   std::string func_parm_;
   FuncType func_type_{FUNC_NONE};
 };
@@ -380,7 +390,7 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::REL_ATTR; }
   AttrType value_type() const override { return UNDEFINED; }
-  RelAttrSqlNode node() const { return node_; }
+  RelAttrSqlNode & node() { return node_; }
 private:
   RelAttrSqlNode node_;
 };
@@ -410,7 +420,7 @@ public:
       : Expression(name, alias) {}
   RC get_value(const Tuple &tuple, Value &value) const override
   { return RC::UNIMPLENMENT; }
-  ExprType type() const override { return ExprType::REL_ATTR; }
+  ExprType type() const override { return ExprType::TABLE; }
   AttrType value_type() const override { return UNDEFINED; }
 private:
 };

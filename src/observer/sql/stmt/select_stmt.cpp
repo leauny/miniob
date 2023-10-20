@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include "event/sql_debug.h"
 
 SelectStmt::~SelectStmt()
 {
@@ -27,17 +28,19 @@ SelectStmt::~SelectStmt()
   }
 }
 
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
+static void wildcard_fields(Table *table, std::vector<Expression*> &field_expressions)
 {
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_metas.push_back(Field(table, table_meta.field(i)));
+    field_expressions.emplace_back(new FieldExpr(table, table_meta.field(i)));
   }
 }
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
+  RC rc = RC::SUCCESS;
+
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
     return RC::INVALID_ARGUMENT;
@@ -67,120 +70,70 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
+  // 构建FieldExpr
+  if (tables.size() == 1) {
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      rc = build_field(select_sql.attributes[i], tables[0]);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    for (auto &condition : select_sql.conditions) {
+      rc = build_field(condition, tables[0]);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+  } else {
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      rc = build_field(select_sql.attributes[i], db);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    for (auto &condition : select_sql.conditions) {
+      rc = build_field(condition, db);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+  }
   // collect query fields in `select` statement
-  std::vector<Field> query_fields;
+  std::vector<Expression*> query_expressions;
   bool has_aggregation = false;
   bool has_attributes = false;
-  // 倒序处理是因为yacc_sql.y中select语句的attributes是倒序的
+  // 倒序处理是因为yacc_sql.y中select语句的attributes是尾插的
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-    const Expression* relation_attr = select_sql.attributes[i];
+    Expression* relation_attr = select_sql.attributes[i];
 
     // TODO: 判断relation_attr的类型后处理
     switch (relation_attr->type()) {
-      case ExprType::NONE: break;
-      case ExprType::STAR: break;
-      case ExprType::FIELD: break;
-      case ExprType::VALUE: break;
-      case ExprType::CAST: break;
-      case ExprType::COMPARISON: break;
-      case ExprType::CONJUNCTION: break;
-      case ExprType::ARITHMETIC: break;
-      case ExprType::SUBQUERY: break;
-      case ExprType::LIST: break;
-      case ExprType::REL_ATTR: break;
-      case ExprType::FUNC: break;
-      case ExprType::TABLE: break;
-    }
+      case ExprType::FIELD: {
+        auto expr = dynamic_cast<FieldExpr*>(relation_attr);
+        auto type = expr->get_func_type();
+        if (type > FUNC_NONE && type < FUNC_AGG_END) {
+          has_aggregation = true;
+        } else {
+          has_attributes = true;
+        }
 
-    if (relation_attr.func_type > FUNC_NONE && relation_attr.func_type < FUNC_AGG_END) {
-      has_aggregation = true;
-    } else {
-      has_attributes = true;
-    }
-    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
-
-    if (common::is_blank(relation_attr.relation_name.c_str()) &&
-        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
-      // bison通配符聚合函数默认表名为空，attr为*
-      if (relation_attr.func_type != FUNC_NONE) {
-        if (relation_attr.func_type != FUNC_WCOUNT) {
+        // function只支持指定类型
+        if ((type == FUNC_LENGTH && expr->field().meta()->type() != CHARS) ||
+            (type == FUNC_ROUND && expr->field().meta()->type() != FLOATS) ||
+            (type == FUNC_DATE_FORMAT && expr->field().meta()->type() != DATES)) {
           return RC::SCHEMA_WRONG_FUNC;
         }
-        Table *table = tables[0];
-        const FieldMeta *field_meta = table->table_meta().field(0);
-        auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-        field.set_alias(relation_attr.alias);
-        query_fields.push_back(field);
-      } else {
-          for (Table *table : tables) {
-            wildcard_fields(table, query_fields);
-          }
-      }
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
-      const char *table_name = relation_attr.relation_name.c_str();
-      const char *field_name = relation_attr.attribute_name.c_str();
-
-      if (0 == strcmp(table_name, "*")) {
-        if (0 != strcmp(field_name, "*")) {
-          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+        query_expressions.emplace_back(relation_attr);
+      } break;
+      case ExprType::STAR: {
         for (Table *table : tables) {
-          wildcard_fields(table, query_fields);
+          wildcard_fields(table, query_expressions);
         }
-      } else {
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
-
-        Table *table = iter->second;
-        if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, query_fields);
-        } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
-            return RC::SCHEMA_FIELD_MISSING;
-          }
-          // function只支持指定类型
-          if ((relation_attr.func_type == FUNC_LENGTH && field_meta->type() != CHARS) ||
-              (relation_attr.func_type == FUNC_ROUND && field_meta->type() != FLOATS) ||
-              (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
-            return RC::SCHEMA_WRONG_FUNC;
-          }
-          auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-          field.set_alias(relation_attr.alias);
-          query_fields.push_back(field);
-        }
-      }
-    } else {
-      if (tables.size() != 1) {
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
-
-      Table *table = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
-
-      // function只支持指定类型
-      if ((relation_attr.func_type == FUNC_LENGTH && field_meta->type() != CHARS) ||
-          (relation_attr.func_type == FUNC_ROUND && field_meta->type() != FLOATS) ||
-          (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
-        return RC::SCHEMA_WRONG_FUNC;
-      }
-      auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-      field.set_alias(relation_attr.alias);
-      query_fields.push_back(field);
+      } break;
+      default:
+        sql_debug("Got error relation attribute: %d", relation_attr->type());
+        return RC::INTERNAL;
     }
+
+    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
   }
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
+  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_expressions.size());
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
@@ -189,7 +142,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC rc = FilterStmt::create(db,
+  rc = FilterStmt::create(db,
       default_table,
       &table_map,
       select_sql.conditions,
@@ -201,10 +154,90 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
-  // TODO add expression copy
+
   select_stmt->tables_.swap(tables);
-  select_stmt->query_fields_.swap(query_fields);
+  select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
+  return RC::SUCCESS;
+}
+
+RC SelectStmt::build_field(Expression *expr, Table *table) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      rc = create_field_expr(expr, table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+        auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+        rc = build_field(comparison_expr->left().get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+        rc = build_field(comparison_expr->right().get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+        for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+          rc = build_field(expression.get(), table);
+          if(OB_FAIL(rc)) { return rc; };
+        }
+    } break;
+    case ExprType::ARITHMETIC: {
+        auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+        rc = build_field(arithmetic_expr->left().get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+        rc = build_field(arithmetic_expr->right().get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+    }break;
+  }
+  return rc;
+}
+
+// multi-table
+RC SelectStmt::build_field(Expression *expr, Db* db) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+        auto field_expr = dynamic_cast<FieldExpr*>(expr);
+        auto table = db->find_table(field_expr->get_node().relation_name.c_str());
+        rc = create_field_expr(expr, table);
+        if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+        auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+        rc = build_field(comparison_expr->left().get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+        rc = build_field(comparison_expr->right().get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+        for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+          rc = build_field(expression.get(), db);
+          if(OB_FAIL(rc)) { return rc; };
+        }
+    } break;
+    case ExprType::ARITHMETIC: {
+        auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+        rc = build_field(arithmetic_expr->left().get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+        rc = build_field(arithmetic_expr->right().get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+    }break;
+  }
+  return rc;
+}
+
+RC SelectStmt::create_field_expr(Expression *expr, Table *table) {
+  auto field_expr = dynamic_cast<FieldExpr*>(expr);
+  if (field_expr == nullptr) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  auto attribute_name = field_expr->get_node().attribute_name;
+  auto field_meta = table->table_meta().field(attribute_name.c_str());
+  if (!field_meta) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  Field field(table, field_meta);
+  field_expr->set_field(field);
   return RC::SUCCESS;
 }

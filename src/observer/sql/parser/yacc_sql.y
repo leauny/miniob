@@ -22,7 +22,7 @@
 
 using namespace std;
 
-static Db* __current_db;
+Db* __current_db;
 
 string token_name(const char *sql_string, YYLTYPE *llocp)
 {
@@ -552,7 +552,8 @@ update_stmt:      /*  update 语句的语法解析树*/
         $$->update.conditions.swap(*$5);
       }
       for (auto &[expr, value] : *$4) {
-        RelAttrExpr* rel = reinterpret_cast<RelAttrExpr*>(expr);
+        auto rel = dynamic_cast<RelAttrExpr*>(expr);
+        if (!rel) { std::cout << "Wrong type." << std::endl; }
         rel->node().relation_name = $2; 
         $$->update.update_fields.emplace_back(
           std::make_pair(create_field_expr(rel->node()), value)
@@ -713,7 +714,8 @@ select_attr:
         bool is_wcount = $1->func_type == FUNC_WCOUNT ? true : false;
         $$->emplace_back(new StarExpr(is_wcount));
       } else {
-        $$->emplace_back(create_field_expr(*$1));
+        FieldExpr* field = new FieldExpr(*$1);
+        $$->emplace_back(field);
       }
       delete $1;
     }
@@ -740,6 +742,24 @@ rel_attr:
         free($1);
         free($3);
         LOG_DEBUG("alias: %s", $$->alias.c_str());
+    }
+    | ID DOT ID AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $5;
+      free($1);
+      free($3);
+      free($5);
+    }
+    | ID DOT ID ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $4;
+      free($1);
+      free($3);
+      free($4);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
@@ -790,7 +810,7 @@ attr_list:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      $$->emplace_back(create_field_expr(*$2));
+      $$->emplace_back(new FieldExpr(*$2));
       delete $2;
     }
     ;
@@ -849,7 +869,9 @@ condition_list:
     }
     | condition {
       $$ = new std::vector<Expression*>;
-      $$->emplace_back($1);
+      std::vector<std::unique_ptr<Expression>> children;
+      children.emplace_back($1);
+      $$->emplace_back(new ConjunctionExpr(ConjunctionExpr::Type::AND, children));
     }
     | condition AND condition_list {
       if ($3) {
@@ -878,22 +900,22 @@ condition:
       auto value_r = Value();
       $3->try_get_value(value_r);
       $$ = new ComparisonExpr($2,
-            std::unique_ptr<FieldExpr>(create_field_expr(*$1)),
+            std::unique_ptr<FieldExpr>(new FieldExpr(*$1)),
             std::make_unique<ValueExpr>(value_r)
             );
     }
     | rel_attr comp_op rel_attr
     {
       $$ = new ComparisonExpr($2,
-            std::unique_ptr<FieldExpr>(create_field_expr(*$1)),
-            std::unique_ptr<FieldExpr>(create_field_expr(*$3))
+            std::unique_ptr<FieldExpr>(new FieldExpr(*$1)),
+            std::unique_ptr<FieldExpr>(new FieldExpr(*$3))
             );
     }
     | expression comp_op rel_attr
     {
       auto value_l = Value();
       $1->try_get_value(value_l);
-      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::unique_ptr<FieldExpr>(create_field_expr(*$3)));
+      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::unique_ptr<FieldExpr>(new FieldExpr(*$3)));
     }
     | expression comp_op expression
     {

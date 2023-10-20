@@ -76,6 +76,7 @@ Tuple *ProjectPhysicalOperator::current_tuple()
 
   // function length, round, data_format.
   if (!result_) {
+    auto size = current_tuple_norm()->cell_num();
     result_ = new LeafTuple(current_tuple_norm()->cell_num());         // 设置聚集函数tuple大小
   }
   int cell_num = tuple_.cell_num();
