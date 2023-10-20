@@ -66,6 +66,9 @@ class Expression
 {
 public:
   Expression() = default;
+  Expression(const std::string &name) : name_(name) {}
+  Expression(const std::string &name, const std::string & alias)
+      : name_(name), alias_(alias) {}
   virtual ~Expression() = default;
 
   /**
@@ -98,10 +101,25 @@ public:
    * @brief 表达式的名字，比如是字段名称，或者用户在执行SQL语句时输入的内容
    */
   virtual std::string name() const { return name_; }
-  virtual void set_name(std::string name) { name_ = name; }
+  virtual void set_name(const std::string &name) { name_ = name; }
+
+  virtual std::string alias() const { return alias_; }
+  virtual void set_alias(const std::string &alias) { alias_ = alias; }
 
 private:
   std::string  name_;
+  std::string  alias_;
+};
+
+class StarExpr : public Expression {
+public:
+  explicit StarExpr(bool is_wildcard_count) : is_wcount(is_wildcard_count) {};
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::STAR; }
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
+  bool is_wildcard_count() const { return is_wcount; }
+private:
+  bool is_wcount{false};
 };
 
 /**
@@ -130,10 +148,16 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
+  void set_func_type(FuncType func_type) { func_type_ = func_type; }
+
+  void set_func_parm(const std::string& value) { func_parm_ = value; }
+
   RC get_value(const Tuple &tuple, Value &value) const override;
 
 private:
   Field field_;
+  std::string func_parm_;
+  FuncType func_type_{FUNC_NONE};
 };
 
 /**
@@ -356,6 +380,7 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::REL_ATTR; }
   AttrType value_type() const override { return UNDEFINED; }
+  RelAttrSqlNode node() const { return node_; }
 private:
   RelAttrSqlNode node_;
 };
@@ -365,7 +390,13 @@ private:
  * @ingroup Expression
  */
 class FuncExpr: public Expression {
-
+public:
+  explicit FuncExpr(const FieldExpr& field) : child_(std::make_unique<FieldExpr>(field)) {}
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::FUNC; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  std::unique_ptr<Expression> child_;
 };
 
 /**
@@ -374,16 +405,12 @@ class FuncExpr: public Expression {
  */
 class TableExpr: public Expression {
 public:
-  explicit TableExpr(std::string name) : name_(name), alias_(name) {}
-  explicit TableExpr(std::string name, std::string alias) : name_(name), alias_(alias) {}
-  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  explicit TableExpr(const std::string &name) : Expression(name) {}
+  explicit TableExpr(const std::string &name, const std::string &alias)
+      : Expression(name, alias) {}
+  RC get_value(const Tuple &tuple, Value &value) const override
+  { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::REL_ATTR; }
   AttrType value_type() const override { return UNDEFINED; }
-  void set_name(std::string name) override { name_ = name; }
-  std::string name() const override { return name_; }
-  void set_alias(std::string alias) { alias_ = alias; }
-  std::string alias() const { return alias_; }
 private:
-  std::string name_;
-  std::string alias_;
 };

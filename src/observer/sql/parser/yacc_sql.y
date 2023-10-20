@@ -18,6 +18,7 @@
 #include "sql/parser/yacc_sql.hpp"
 #include "sql/parser/lex_sql.h"
 #include "storage/db/db.h"
+#include "storage/field/field_meta.h"
 
 using namespace std;
 
@@ -38,10 +39,17 @@ int yyerror(YYLTYPE *llocp, const char *sql_string, ParsedSqlResult *sql_result,
   return 0;
 }
 
-FieldExpr *create_filed_expr(const RelAttrSqlNode &node) {
+FieldExpr *create_field_expr(const RelAttrSqlNode &node) {
   Table* table = __current_db->find_table(node.relation_name.c_str());
   const FieldMeta* field = table->table_meta().field(node.attribute_name.c_str());
-  return new FieldExpr(table, field);
+
+  auto expr = new FieldExpr(table, field);
+  expr->set_name(field->name());
+  expr->set_alias(node.relation_name.c_str());
+  expr->set_func_type(node.func_type);
+  expr->set_func_parm(node.func_parm.c_str());
+
+  return expr;
 }
 
 ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
@@ -540,9 +548,15 @@ update_stmt:      /*  update 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.update_fields.swap(*$4);
       if ($5 != nullptr) {
         $$->update.conditions.swap(*$5);
+      }
+      for (auto &[expr, value] : *$4) {
+        RelAttrExpr* rel = reinterpret_cast<RelAttrExpr*>(expr);
+        rel->node().relation_name = $2; 
+        $$->update.update_fields.emplace_back(
+          std::make_pair(create_field_expr(rel->node()), value)
+        );
       }
       free($2);
     }
@@ -551,7 +565,7 @@ update_list:
     ID EQ value {
       $$ = new std::vector<std::pair<Expression*, Expression*>>;
       RelAttrSqlNode tmp;
-      tmp.relation_name = $1;
+      tmp.attribute_name = $1;
       $$->emplace_back(make_pair(new RelAttrExpr(tmp), new ValueExpr(*$3)));
       free($1);
       free($3);
@@ -564,7 +578,7 @@ update_list:
         $$ = new std::vector<std::pair<Expression*, Expression*>>;
       }
       RelAttrSqlNode tmp;
-      tmp.relation_name = $3;
+      tmp.attribute_name = $3;
       $$->emplace_back(make_pair(new RelAttrExpr(tmp), new ValueExpr(*$5)));
       free($3);
       free($5);
@@ -572,7 +586,7 @@ update_list:
     | ID EQ subquery {
       $$ = new std::vector<std::pair<Expression*, Expression*>>;
       RelAttrSqlNode tmp;
-      tmp.relation_name = $1;
+      tmp.attribute_name = $1;
       $$->emplace_back(make_pair(new RelAttrExpr(tmp), new SubQueryExpr($3->selection)));
       free($1);
       delete $3;  // new SubQueryExpr($3->selection)已经move了部分字段，可能有问题
@@ -585,7 +599,7 @@ update_list:
         $$ = new std::vector<std::pair<Expression*, Expression*>>;
       }
       RelAttrSqlNode tmp;
-      tmp.relation_name = $3;
+      tmp.attribute_name = $3;
       $$->emplace_back(make_pair(new RelAttrExpr(tmp), new SubQueryExpr($5->selection)));
       free($3);
     }
@@ -687,11 +701,7 @@ select_attr:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      auto tmp = new RelAttrExpr(attr);
-      $$->emplace_back(tmp);
+      $$->emplace_back(new StarExpr(false));
     }
     | rel_attr attr_list {
       if ($2 != nullptr) {
@@ -699,8 +709,12 @@ select_attr:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      auto tmp = new RelAttrExpr(*$1);
-      $$->emplace_back(tmp);
+      if (0 == strcmp($1->attribute_name.c_str(), "*")) {
+        bool is_wcount = $1->func_type == FUNC_WCOUNT ? true : false;
+        $$->emplace_back(new StarExpr(is_wcount));
+      } else {
+        $$->emplace_back(create_field_expr(*$1));
+      }
       delete $1;
     }
     ;
@@ -711,17 +725,19 @@ rel_attr:
       $$->attribute_name = $1;
       free($1);
     }
-    | rel_attr ID {
-        // alias
-        $$ = $1;
+    | ID ID {
+        $$ = new RelAttrSqlNode;
+        $$->attribute_name = $1;
         $$->alias = $2;
+        free($1);
         free($2);
         LOG_DEBUG("alias: %s", $$->alias.c_str());
     }
-    | rel_attr AS ID {
-        // alias
-        $$ = $1;
+    | ID AS ID {
+        $$ = new RelAttrSqlNode;
+        $$->attribute_name = $1;
         $$->alias = $3;
+        free($1);
         free($3);
         LOG_DEBUG("alias: %s", $$->alias.c_str());
     }
@@ -774,7 +790,7 @@ attr_list:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      $$->emplace_back(new RelAttrExpr(*$2));
+      $$->emplace_back(create_field_expr(*$2));
       delete $2;
     }
     ;
@@ -861,17 +877,23 @@ condition:
     {
       auto value_r = Value();
       $3->try_get_value(value_r);
-      $$ = new ComparisonExpr($2, make_unique<RelAttrExpr>(*$1), make_unique<ValueExpr>(value_r));
+      $$ = new ComparisonExpr($2,
+            std::unique_ptr<FieldExpr>(create_field_expr(*$1)),
+            std::make_unique<ValueExpr>(value_r)
+            );
     }
     | rel_attr comp_op rel_attr
     {
-      $$ = new ComparisonExpr($2, make_unique<RelAttrExpr>(*$1), make_unique<RelAttrExpr>(*$3));
+      $$ = new ComparisonExpr($2,
+            std::unique_ptr<FieldExpr>(create_field_expr(*$1)),
+            std::unique_ptr<FieldExpr>(create_field_expr(*$3))
+            );
     }
     | expression comp_op rel_attr
     {
       auto value_l = Value();
       $1->try_get_value(value_l);
-      $$ = new ComparisonExpr($2, make_unique<ValueExpr>(value_l), make_unique<RelAttrExpr>(*$3));
+      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::unique_ptr<FieldExpr>(create_field_expr(*$3)));
     }
     | expression comp_op expression
     {
@@ -880,7 +902,7 @@ condition:
       auto value_r = Value();
       $1->try_get_value(value_l);
       $3->try_get_value(value_r);
-      $$ = new ComparisonExpr($2, make_unique<ValueExpr>(value_l), make_unique<ValueExpr>(value_r));
+      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::make_unique<ValueExpr>(value_r));
     }
     ;
 comp_op:
