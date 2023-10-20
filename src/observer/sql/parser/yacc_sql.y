@@ -495,6 +495,10 @@ value:
       free(tmp);
     }
     |DATE {
+      if (!$1.ok()) {
+        LOG_WARN("date is invalid");
+        return -1;
+      }
       $$ = new Value((date)$1);
       @$ = @1;
     }
