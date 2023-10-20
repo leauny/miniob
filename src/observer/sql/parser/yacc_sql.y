@@ -929,6 +929,12 @@ condition:
       $3->try_get_value(value_r);
       $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::make_unique<ValueExpr>(value_r));
     }
+    | expression
+    {
+      auto value = Value();
+      $1->try_get_value(value);
+      $$ = new ValueExpr(value);
+    }
     ;
 comp_op:
       EQ { $$ = EQUAL_TO; }

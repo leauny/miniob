@@ -42,6 +42,11 @@ RC FieldExpr::build_field(Expression *expr, Table *table) {
         if(OB_FAIL(rc)) { return rc; };
       }
     } break;
+    case ExprType::CAST: {
+      auto cast_expr = dynamic_cast<CastExpr*>(expr);
+      rc = build_field(cast_expr->child().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
     case ExprType::ARITHMETIC: {
       auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
       rc = build_field(arithmetic_expr->left().get(), table);
@@ -77,6 +82,11 @@ RC FieldExpr::build_field(Expression *expr, Db* db) {
         rc = build_field(expression.get(), db);
         if(OB_FAIL(rc)) { return rc; };
       }
+    } break;
+    case ExprType::CAST: {
+      auto cast_expr = dynamic_cast<CastExpr*>(expr);
+      rc = build_field(cast_expr->child().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
     } break;
     case ExprType::ARITHMETIC: {
       auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
@@ -265,6 +275,13 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     return rc;
   }
+
+  // TODO: type cast
+  if (left_value.attr_type() != right_value.attr_type()) {
+    // TODO: 搞一个类型转换匹配map, 用于匹配类型转换
+
+  }
+
 
   bool bool_value = false;
   rc = compare_value(left_value, right_value, bool_value);

@@ -434,16 +434,14 @@ bool Value::get_boolean() const
         if (val >= EPSILON || val <= -EPSILON) {
           return true;
         }
-
-        int int_val = std::stol(str_value_);
+        int int_val = std::stoi(str_value_);
         if (int_val != 0) {
           return true;
         }
-
-        return !str_value_.empty();
+        return false;
       } catch (std::exception const &ex) {
         LOG_TRACE("failed to convert string to float or integer. s=%s, ex=%s", str_value_.c_str(), ex.what());
-        return !str_value_.empty();
+        return false;
       }
     } break;
     case INTS: {
