@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 class Db;
 class Table;
 class FieldMeta;
+class SelectStmt;
 
 struct FilterObj 
 {
@@ -95,7 +96,7 @@ public:
   virtual ~FilterStmt();
 
 public:
-  const std::vector<FilterUnit *> &filter_units() const
+  const std::vector<Expression *> &filter_units() const
   {
     return filter_units_;
   }
@@ -103,12 +104,13 @@ public:
 public:
   // TODO: 将ConditionSqlNode转换为FilterUnit
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
+      const std::vector<Expression*> conditions, FilterStmt *&stmt);
 
   static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode &condition, FilterUnit *&filter_unit);
+      Expression *condition, FilterUnit *&filter_unit);
 
 private:
   // TODO: 改为Expression, 直接在解析层面创建ast
-  std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  std::vector<Expression *> filter_units_;  // 默认当前都是AND关系
+  Expression* filter_expr_ = nullptr;       // 将数组中的ConjunctionExpr合并为一个ConjunctionExpr
 };

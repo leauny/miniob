@@ -22,29 +22,38 @@ See the Mulan PSL v2 for more details. */
 
 FilterStmt::~FilterStmt()
 {
-  for (FilterUnit *unit : filter_units_) {
+  for (auto *unit : filter_units_) {
     delete unit;
   }
   filter_units_.clear();
 }
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
+    const std::vector<Expression*> conditions, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt = nullptr;
 
   FilterStmt *tmp_stmt = new FilterStmt();
-  for (int i = 0; i < condition_num; i++) {
+  for (const auto condition : conditions) {
     FilterUnit *filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    // 只有conditions数组存储的才是ConjunctionExpr, ConjunctionExpr下都是ComparisonExpr
+    rc = create_filter_unit(db, default_table, tables, condition, filter_unit);
     if (rc != RC::SUCCESS) {
       delete tmp_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", i);
+      LOG_WARN("failed to create filter unit. condition '%s'", condition->name().c_str());
       return rc;
     }
     tmp_stmt->filter_units_.push_back(filter_unit);
   }
+
+  // TODO: 转换为FieldExpr后直接存？
+  for (Expression * const condition : conditions) {
+    tmp_stmt->filter_units_.emplace_back(condition);
+  }
+
+  // TODO: 根据ConjunctionExpr数组，将其构建为一个Expr
+  tmp_stmt->filter_expr_ = "Expression Tree";
 
   stmt = tmp_stmt;
   return rc;
@@ -79,9 +88,34 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
 }
 
 RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode &condition, FilterUnit *&filter_unit)
+    Expression *cond, FilterUnit *&filter_unit)
 {
   RC rc = RC::SUCCESS;
+
+  if (cond->type() != ExprType::CONJUNCTION) {
+    return RC::INTERNAL;  // conditions数组存储的都是ConjunctionExpr
+  }
+  ConjunctionExpr *condition = dynamic_cast<ConjunctionExpr *>(cond);
+  if (condition->children().size() != 1) {
+    LOG_WARN("Too many condition in one ConjunctionExpr");
+    return RC::INTERNAL;
+  }
+
+  auto comparison = condition->children().front().get();
+
+  switch (comparison->type()) {
+    case ExprType::VALUE: {
+
+    } break;
+    case ExprType::ARITHMETIC: {
+
+    } break;
+    case ExprType::COMPARISON: {
+
+    } break;
+    default:
+      LOG_INFO("Got expression type: %d", comparison->type());
+  }
 
   CompOp comp = condition.comp;
   if (comp < EQUAL_TO || comp >= NO_OP) {
@@ -89,12 +123,10 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     return RC::INVALID_ARGUMENT;
   }
 
-  filter_unit = new FilterUnit;
-
   if (condition.left_is_attr) {
     Table *table = nullptr;
     const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+    rc = get_table_and_field(db, default_table, tables, condition, table, field);
     if (rc != RC::SUCCESS) {
       LOG_WARN("cannot find attr");
       return rc;

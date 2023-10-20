@@ -123,14 +123,16 @@ RC LogicalPlanGenerator::create_plan(
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
       if (0 == strcmp(field.table_name(), table->name())) {
-        fields.push_back(field);
+        fields.push_back(field);  // 按照表来遍历，找到属与当前表中的field
       }
     }
 
+    // 根据找到的field来创建table get operator
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true/*readonly*/));
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);
     } else {
+      // 如果存在多表就将TableGetLogicalOperator移动到JoinLogicalOperator中
       JoinLogicalOperator *join_oper = new JoinLogicalOperator;
       join_oper->add_child(std::move(table_oper));
       join_oper->add_child(std::move(table_get_oper));
@@ -138,6 +140,7 @@ RC LogicalPlanGenerator::create_plan(
     }
   }
 
+  // 创建predicate operator
   unique_ptr<LogicalOperator> predicate_oper;
   RC rc = create_plan(select_stmt->filter_stmt(), predicate_oper);
   if (rc != RC::SUCCESS) {
@@ -145,6 +148,7 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
+  // 创建project operator
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
   if (predicate_oper) {
     if (table_oper) {
@@ -164,22 +168,11 @@ RC LogicalPlanGenerator::create_plan(
 RC LogicalPlanGenerator::create_plan(
     FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
+  // TODO: 学习这的EXPRESSION
   std::vector<unique_ptr<Expression>> cmp_exprs;
-  const std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
-  for (const FilterUnit *filter_unit : filter_units) {
-    const FilterObj &filter_obj_left = filter_unit->left();
-    const FilterObj &filter_obj_right = filter_unit->right();
-
-    unique_ptr<Expression> left(filter_obj_left.is_attr
-                                         ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
-                                         : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
-
-    unique_ptr<Expression> right(filter_obj_right.is_attr
-                                          ? static_cast<Expression *>(new FieldExpr(filter_obj_right.field))
-                                          : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
-
-    ComparisonExpr *cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
-    cmp_exprs.emplace_back(cmp_expr);
+  const std::vector<Expression *> filter_units = filter_stmt->filter_units();
+  for (Expression *filter_unit : filter_units) {
+    cmp_exprs.emplace_back(filter_unit);
   }
 
   unique_ptr<PredicateLogicalOperator> predicate_oper;

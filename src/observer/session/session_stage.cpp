@@ -140,7 +140,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
 
-  if (sql_event->sql_node()->flag == SCF_UPDATE) {
+  /*if (sql_event->sql_node()->flag == SCF_UPDATE) {
     UpdateSqlNode& update = sql_event->sql_node()->update;
     for (auto& field : update.parser_update_fields) {
       if (field.is_subquery) {
@@ -181,7 +181,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
       }
       update.update_fields.push_back({field.field_name, field.value});
     }
-  }
+  }*/
 
   rc = resolve_stage_.handle_request(sql_event);
   if (OB_FAIL(rc)) {

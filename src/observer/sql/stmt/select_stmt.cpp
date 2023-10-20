@@ -47,16 +47,19 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    // TODO: 表的别名
-    const char *table_name = select_sql.relations[i].c_str();
-    if (nullptr == table_name) {
+    if (select_sql.relations[i]->type() != ExprType::TABLE) {
+      LOG_WARN("invalid argument. relation type is not table. index=%d", i);
+      return RC::INVALID_ARGUMENT;
+    }
+    auto table_name = select_sql.relations[i]->name();
+    if (common::is_blank(table_name.c_str())) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
     }
 
-    Table *table = db->find_table(table_name);
+    Table *table = db->find_table(table_name.c_str());
     if (nullptr == table) {
-      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name.c_str());
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
 
@@ -68,8 +71,26 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Field> query_fields;
   bool has_aggregation = false;
   bool has_attributes = false;
+  // 倒序处理是因为yacc_sql.y中select语句的attributes是倒序的
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-    const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
+    const Expression* relation_attr = select_sql.attributes[i];
+
+    // TODO: 判断relation_attr的类型后处理
+    switch (relation_attr->type()) {
+      case ExprType::NONE: break;
+      case ExprType::STAR: break;
+      case ExprType::FIELD: break;
+      case ExprType::VALUE: break;
+      case ExprType::CAST: break;
+      case ExprType::COMPARISON: break;
+      case ExprType::CONJUNCTION: break;
+      case ExprType::ARITHMETIC: break;
+      case ExprType::SUBQUERY: break;
+      case ExprType::LIST: break;
+      case ExprType::REL_ATTR: break;
+      case ExprType::FUNC: break;
+      case ExprType::TABLE: break;
+    }
 
     if (relation_attr.func_type > FUNC_NONE && relation_attr.func_type < FUNC_AGG_END) {
       has_aggregation = true;
@@ -171,8 +192,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   RC rc = FilterStmt::create(db,
       default_table,
       &table_map,
-      select_sql.conditions.data(),
-      static_cast<int>(select_sql.conditions.size()),
+      select_sql.conditions,
       filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");

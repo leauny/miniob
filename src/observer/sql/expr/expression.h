@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
@@ -43,6 +44,11 @@ enum class ExprType
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
+  SUBQUERY,     ///< 子查询
+  LIST,         ///< 列表
+  REL_ATTR,     ///< 关系属性
+  FUNC,         ///< 函数(length, random, data_format 以及 聚集函数)
+  TABLE,        ///< 表名
 };
 
 /**
@@ -242,6 +248,8 @@ public:
   };
 
 public:
+  /*ConjunctionExpr(Type type, Expression *left, Expression *right);
+  ConjunctionExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);*/
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
   virtual ~ConjunctionExpr() = default;
 
@@ -254,10 +262,14 @@ public:
   Type conjunction_type() const { return conjunction_type_; }
 
   std::vector<std::unique_ptr<Expression>> &children() { return children_; }
+/*  std::unique_ptr<Expression> &left() { return left_; }
+  std::unique_ptr<Expression> &right() { return right_; }*/
 
 private:
   Type conjunction_type_;
   std::vector<std::unique_ptr<Expression>> children_;
+  /*std::unique_ptr<Expression> left_;
+  std::unique_ptr<Expression> right_;*/
 };
 
 /**
@@ -299,4 +311,79 @@ private:
   Type arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief 子查询表达式
+ * @ingroup Expression
+ */
+class SubQueryExpr: public Expression {
+public:
+  explicit SubQueryExpr(SelectSqlNode &node) {
+    attributes_ = std::move(node.attributes);
+    relations_ = std::move(node.relations);
+    conditions_ = std::move(node.conditions);
+  };
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::SUBQUERY; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  std::vector<Expression*>        attributes_;         ///< attributes in select clause
+  std::vector<Expression*>        relations_;          ///< from clause
+  std::vector<Expression*>        conditions_;         ///< where clause
+};
+
+/**
+ * @brief 列表表达式, 用于存储如 id in (col, 1, 2)中(col, 1, 2)这样的表达式
+ * @ingroup Expression
+ */
+class ListExpr: public Expression {
+public:
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::LIST; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  std::vector<std::unique_ptr<Expression>> children_;
+};
+
+/**
+ * @brief Relation, Attribute表达式, 后续需要转换为FieldExpr
+ * @ingroup Expression
+ */
+class RelAttrExpr: public Expression {
+public:
+  explicit RelAttrExpr(RelAttrSqlNode node) {  node_ = std::move(node); }
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::REL_ATTR; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  RelAttrSqlNode node_;
+};
+
+/**
+ * @brief 聚集函数或函数的表达式
+ * @ingroup Expression
+ */
+class FuncExpr: public Expression {
+
+};
+
+/**
+ * @brief 表名表达式
+ * @ingroup Expression
+ */
+class TableExpr: public Expression {
+public:
+  explicit TableExpr(std::string name) : name_(name), alias_(name) {}
+  explicit TableExpr(std::string name, std::string alias) : name_(name), alias_(alias) {}
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::REL_ATTR; }
+  AttrType value_type() const override { return UNDEFINED; }
+  void set_name(std::string name) override { name_ = name; }
+  std::string name() const override { return name_; }
+  void set_alias(std::string alias) { alias_ = alias; }
+  std::string alias() const { return alias_; }
+private:
+  std::string name_;
+  std::string alias_;
 };

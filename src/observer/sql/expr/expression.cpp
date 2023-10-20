@@ -181,6 +181,16 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+/*
+ConjunctionExpr::ConjunctionExpr(ConjunctionExpr::Type type, Expression *left, Expression *right)
+    : conjunction_type_(type), left_(left), right_(right) {}
+
+ConjunctionExpr::ConjunctionExpr(
+    ConjunctionExpr::Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right)
+    : conjunction_type_(type), left_(std::move(left)), right_(std::move(right)) {}
+*/
+
 ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
     : conjunction_type_(type), children_(std::move(children))
 {}

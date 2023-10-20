@@ -97,7 +97,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   sql_result->set_tuple_schema(schema);
   sql_result->set_operator(std::move(physical_operator));
 
-  if (stmt->type() == StmtType::SELECT && sql_event->sql_node()->selection.is_subquery) {
+  /*if (stmt->type() == StmtType::SELECT && sql_event->sql_node()->selection.is_subquery) {
     rc = sql_result->open();
     if (OB_FAIL(rc)) {
       sql_result->close();
@@ -122,6 +122,6 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     if (rc == RC::RECORD_EOF) {
       rc = RC::SUCCESS;
     }
-  }
+  }*/
   return rc;
 }
