@@ -105,7 +105,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     switch (relation_attr->type()) {
       case ExprType::FIELD: {
         auto expr = dynamic_cast<FieldExpr*>(relation_attr);
-        auto type = expr->get_func_type();
+        auto type = expr->field().func_type();
         if (type > FUNC_NONE && type < FUNC_AGG_END) {
           has_aggregation = true;
         } else {
@@ -121,6 +121,13 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         query_expressions.emplace_back(relation_attr);
       } break;
       case ExprType::STAR: {
+        auto expr = dynamic_cast<FieldExpr*>(relation_attr);
+        auto type = expr->field().func_type();
+        if (type > FUNC_NONE && type < FUNC_AGG_END) {
+          has_aggregation = true;
+        } else {
+          has_attributes = true;
+        }
         for (Table *table : tables) {
           wildcard_fields(table, query_expressions);
         }

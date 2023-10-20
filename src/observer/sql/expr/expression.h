@@ -112,15 +112,13 @@ private:
   std::string  alias_;
 };
 
+// 仅用于存放*, 不包括count(*), count(*)存放在FieldExpr中
 class StarExpr : public Expression {
 public:
-  explicit StarExpr(bool is_wildcard_count) : is_wcount(is_wildcard_count) {};
+  explicit StarExpr() = default;
   RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::STAR; }
   AttrType value_type() const override { return AttrType::UNDEFINED; }
-  bool is_wildcard_count() const { return is_wcount; }
-private:
-  bool is_wcount{false};
 };
 
 /**
@@ -152,14 +150,6 @@ public:
 
   void set_field(Field field) { field_ = field; }
 
-  void set_func_type(FuncType func_type) { func_type_ = func_type; }
-
-  FuncType get_func_type() { return func_type_; }
-
-  void set_func_parm(const std::string& value) { func_parm_ = value; }
-
-  std::string get_func_parm() { return func_parm_; }
-
   RC get_value(const Tuple &tuple, Value &value) const override;
 
   RelAttrSqlNode& get_node() { return node_; }
@@ -171,8 +161,6 @@ public:
 private:
   Field field_;
   RelAttrSqlNode node_;
-  std::string func_parm_;
-  FuncType func_type_{FUNC_NONE};
 };
 
 /**

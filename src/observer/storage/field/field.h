@@ -52,9 +52,17 @@ public:
     return function_;
   }
 
+  void set_func_type(FuncType type) {
+    function_ = type;
+  }
+
   std::string func_parm() const
   {
     return func_parm_;
+  }
+
+  void set_func_parm(const std::string &parm) {
+    func_parm_ = parm;
   }
 
   const char *table_name() const

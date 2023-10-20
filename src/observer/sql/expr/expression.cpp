@@ -49,6 +49,9 @@ RC FieldExpr::build_field(Expression *expr, Table *table) {
       rc = build_field(arithmetic_expr->right().get(), table);
       if(OB_FAIL(rc)) { return rc; };
     }break;
+    default:
+      LOG_WARN("Got unsupported ExprType: %d.", expr->type());
+      rc = RC::UNIMPLENMENT;
   }
   return rc;
 }
@@ -92,13 +95,22 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
   if (field_expr == nullptr) {
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
-  auto attribute_name = field_expr->get_node().attribute_name;
-  auto field_meta = table->table_meta().field(attribute_name.c_str());
+  auto attr_node = field_expr->get_node();
+  auto attribute_name = attr_node.attribute_name.c_str();
+  auto parm = attr_node.func_parm;
+  auto type = attr_node.func_type;
+  auto field_meta = table->table_meta().field(attribute_name);
+  if (type == FUNC_WCOUNT) {
+    ASSERT(field_meta == nullptr, "Unknown error.");
+    field_meta = table->table_meta().field(0);
+  }
   if (!field_meta) {
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
   Field field(table, field_meta);
   field_expr->set_field(field);
+  field_expr->field().set_func_type(type);
+  field_expr->field().set_func_parm(parm);
   return RC::SUCCESS;
 }
 

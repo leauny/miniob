@@ -46,8 +46,8 @@ FieldExpr *create_field_expr(const RelAttrSqlNode &node) {
   auto expr = new FieldExpr(table, field);
   expr->set_name(field->name());
   expr->set_alias(node.relation_name.c_str());
-  expr->set_func_type(node.func_type);
-  expr->set_func_parm(node.func_parm.c_str());
+  expr->field().set_func_type(node.func_type);
+  expr->field().set_func_parm(node.func_parm.c_str());
 
   return expr;
 }
@@ -702,7 +702,7 @@ select_attr:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      $$->emplace_back(new StarExpr(false));
+      $$->emplace_back(new StarExpr());
     }
     | rel_attr attr_list {
       if ($2 != nullptr) {
@@ -710,9 +710,8 @@ select_attr:
       } else {
         $$ = new std::vector<Expression*>;
       }
-      if (0 == strcmp($1->attribute_name.c_str(), "*")) {
-        bool is_wcount = $1->func_type == FUNC_WCOUNT ? true : false;
-        $$->emplace_back(new StarExpr(is_wcount));
+      if (0 == strcmp($1->attribute_name.c_str(), "*") && $1->func_type != FUNC_WCOUNT) {
+        $$->emplace_back(new StarExpr());
       } else {
         FieldExpr* field = new FieldExpr(*$1);
         $$->emplace_back(field);
