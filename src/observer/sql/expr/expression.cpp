@@ -50,8 +50,7 @@ RC FieldExpr::build_field(Expression *expr, Table *table) {
       if(OB_FAIL(rc)) { return rc; };
     }break;
     default:
-      LOG_WARN("Got unsupported ExprType: %d.", expr->type());
-      rc = RC::UNIMPLENMENT;
+      LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
   }
   return rc;
 }
@@ -86,6 +85,8 @@ RC FieldExpr::build_field(Expression *expr, Db* db) {
       rc = build_field(arithmetic_expr->right().get(), db);
       if(OB_FAIL(rc)) { return rc; };
     }break;
+    default:
+      LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
   }
   return rc;
 }
