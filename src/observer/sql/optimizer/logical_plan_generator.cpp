@@ -122,6 +122,7 @@ RC LogicalPlanGenerator::create_plan(
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const auto &expr : all_exprs) {
+      // TODO: 支持ArithmeticExpression
       if (expr->type() != ExprType::FIELD) {
         continue;
       }

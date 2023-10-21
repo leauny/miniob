@@ -58,6 +58,40 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %parse-param { ParsedSqlResult * sql_result }
 %parse-param { void * scanner }
 
+/** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
+%union {
+  ParsedSqlNode *                               sql_node;
+  Value *                                       value;
+  std::vector<Value> *                          record;
+  enum CompOp                                   comp;
+  enum FuncType                                 func_t;
+  RelAttrSqlNode *                              rel_attr;
+  std::vector<AttrInfoSqlNode> *                attr_infos;
+  AttrInfoSqlNode *                             attr_info;
+  Expression *                                  expression;
+  std::vector<Expression *> *                   expression_list;
+  std::vector<Value> *                          value_list;
+  std::vector<std::vector<Value>> *             record_list;
+  std::vector<
+    std::pair<std::string, Expression*>
+  > *                                           update_list;
+  std::vector<JoinSqlNode> *                    join_list;
+  char *                                        string;
+  int                                           number;
+  float                                         floats;
+  date                                          dates;
+  bool                                          bools;
+}
+
+%token <number> NUMBER
+%token <floats> FLOAT
+%token <string> ID
+%token <string> SSS
+%token <string> MIX_SUB
+%token <func_t> AGG
+%token <dates>  DATE
+//非终结符
+
 //标识tokens
 %token  SEMICOLON
         CREATE
@@ -117,49 +151,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IS_NOT
 
 
-
-/** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
-%union {
-  ParsedSqlNode *                               sql_node;
-  Expression *                                  condition;
-  Value *                                       value;
-  std::vector<Value> *                          record;
-  enum CompOp                                   comp;
-  enum FuncType                                 func_t;
-  RelAttrSqlNode *                              rel_attr;
-  std::vector<AttrInfoSqlNode> *                attr_infos;
-  AttrInfoSqlNode *                             attr_info;
-  Expression *                                  expression;
-  std::vector<Expression *> *                   expression_list;
-  std::vector<Value> *                          value_list;
-  std::vector<std::vector<Value>> *             record_list;
-  std::vector<Expression*>*                     condition_list;
-  std::vector<Expression*>*                     rel_attr_list;
-  std::vector<Expression*>*                     relation_list;
-  std::vector<
-    std::pair<std::string, Expression*>
-  > *                                           update_list;
-  std::vector<JoinSqlNode> *                    join_list;
-  char *                                        string;
-  int                                           number;
-  float                                         floats;
-  date                                          dates;
-  bool                                          bools;
-}
-
-%token <number> NUMBER
-%token <floats> FLOAT
-%token <string> ID
-%token <string> SSS
-%token <string> MIX_SUB
-%token <func_t> AGG
-%token <dates>  DATE
-//非终结符
-
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <sql_node>            subquery
 %type <number>              type
-%type <condition>           condition
+%type <expression>          condition
 %type <value>               value
 %type <value_list>          record
 %type <number>              number
@@ -169,11 +164,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <record_list>         record_list
-%type <condition_list>      where
-%type <condition_list>      condition_list
-%type <rel_attr_list>       select_attr
-%type <relation_list>       rel_list
-%type <rel_attr_list>       attr_list
+%type <expression_list>     where
+%type <expression_list>     condition_list
+%type <expression_list>     select_attr
+%type <expression_list>     rel_list
+%type <expression_list>     attr_list
 %type <update_list>         update_list
 %type <expression>          rel_expr
 %type <expression>          expression
@@ -702,11 +697,6 @@ rel_attr:
       $$->attribute_name = $1;
       free($1);
     }
-    | LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $2;
-      free($2);
-    }
     | ID ID {
         $$ = new RelAttrSqlNode;
         $$->attribute_name = $1;
@@ -875,41 +865,15 @@ condition_list:
     }
     ;
 condition:
-    rel_expr comp_op expression
+    LBRACE condition RBRACE
     {
-      $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
+      $$ = $2;
     }
+    | rel_expr comp_op expression
     | expression comp_op rel_expr
-    {
-      $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
     | condition comp_op rel_expr
-    {
-      $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
     | condition comp_op expression
-    {
-      $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
     | expression comp_op expression
-    {
-      $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
     | rel_expr comp_op rel_expr
     {
       $$ = new ComparisonExpr($2,
@@ -920,78 +884,36 @@ condition:
     ;
 
 rel_expr:
-    rel_expr '+' rel_expr {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
+    LBRACE rel_expr RBRACE
+    {
+      $$ = $2;
     }
-    | rel_expr '-' rel_expr {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | rel_expr '*' rel_expr {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | rel_expr '/' rel_expr {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | '-' rel_expr %prec UMINUS {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
-        std::make_unique<ValueExpr>(Value(0)),
-        std::unique_ptr<Expression>($2)
-      );
-    }
-    | rel_expr '+' expression {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | rel_expr '-' expression {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | rel_expr '*' expression {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
-    | rel_expr '/' expression {
-      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
-        std::unique_ptr<Expression>($1),
-        std::unique_ptr<Expression>($3)
-      );
-    }
+    | rel_expr '+' rel_expr
+    | rel_expr '+' expression
     | expression '+' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
+    | rel_expr '-' rel_expr
+    | rel_expr '-' expression
     | expression '-' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
+    | rel_expr '*' rel_expr
+    | rel_expr '*' expression
     | expression '*' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
+    | rel_expr '/' rel_expr
+    | rel_expr '/' expression
     | expression '/' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
