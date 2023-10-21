@@ -201,7 +201,7 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
     project_operator->add_projection(
         field_expr->field().table(),
         field_expr->field().meta(),
-        field_expr->field().get_alias(),
+        expr->alias(),
         field_expr->field().func_type(),
         field_expr->field().func_parm());
   }

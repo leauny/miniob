@@ -116,6 +116,7 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
   }
   auto attr_node = field_expr->get_node();
   auto attribute_name = attr_node.attribute_name.c_str();
+  auto alias = attr_node.alias.c_str();
   auto parm = attr_node.func_parm;
   auto type = attr_node.func_type;
   auto field_meta = table->table_meta().field(attribute_name);
@@ -127,6 +128,8 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
   Field field(table, field_meta);
+  field_expr->set_name(attribute_name);
+  field_expr->set_alias(alias);
   field_expr->set_field(field);
   field_expr->field().set_func_type(type);
   field_expr->field().set_func_parm(parm);

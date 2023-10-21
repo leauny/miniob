@@ -903,6 +903,20 @@ condition:
         std::unique_ptr<Expression>($3)
       );
     }
+    | expression comp_op expression
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr comp_op rel_expr
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     ;
 
 rel_expr:
