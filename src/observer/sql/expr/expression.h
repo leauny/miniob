@@ -17,12 +17,16 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
 #include "common/log/log.h"
 
+class Db;
 class Tuple;
+class PhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -43,6 +47,11 @@ enum class ExprType
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
+  SUBQUERY,     ///< 子查询
+  LIST,         ///< 列表
+  REL_ATTR,     ///< 关系属性
+  FUNC,         ///< 函数(length, random, data_format 以及 聚集函数)
+  TABLE,        ///< 表名
 };
 
 /**
@@ -60,6 +69,9 @@ class Expression
 {
 public:
   Expression() = default;
+  Expression(const std::string &name) : name_(name) {}
+  Expression(const std::string &name, const std::string & alias)
+      : name_(name), alias_(alias) {}
   virtual ~Expression() = default;
 
   /**
@@ -92,10 +104,23 @@ public:
    * @brief 表达式的名字，比如是字段名称，或者用户在执行SQL语句时输入的内容
    */
   virtual std::string name() const { return name_; }
-  virtual void set_name(std::string name) { name_ = name; }
+  virtual void set_name(const std::string &name) { name_ = name; }
+
+  virtual std::string alias() const { return alias_; }
+  virtual void set_alias(const std::string &alias) { alias_ = alias; }
 
 private:
   std::string  name_;
+  std::string  alias_;
+};
+
+// 仅用于存放*, 不包括count(*), count(*)存放在FieldExpr中
+class StarExpr : public Expression {
+public:
+  explicit StarExpr() = default;
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::STAR; }
+  AttrType value_type() const override { return AttrType::UNDEFINED; }
 };
 
 /**
@@ -105,7 +130,8 @@ private:
 class FieldExpr : public Expression 
 {
 public:
-  FieldExpr() = default;
+  FieldExpr() = delete;
+  FieldExpr(RelAttrSqlNode node) : node_(node) {}
   FieldExpr(const Table *table, const FieldMeta *field) : field_(table, field)
   {}
   FieldExpr(const Field &field) : field_(field)
@@ -124,10 +150,19 @@ public:
 
   const char *field_name() const { return field_.field_name(); }
 
+  void set_field(Field field) { field_ = field; }
+
   RC get_value(const Tuple &tuple, Value &value) const override;
+
+  RelAttrSqlNode& get_node() { return node_; }
+
+  static RC build_field(Expression *expr, Table *table);
+  static RC build_field(Expression *expr, Db* db);  // multi-table
+  static RC create_field_expr(Expression *expr, Table *table);
 
 private:
   Field field_;
+  RelAttrSqlNode node_;
 };
 
 /**
@@ -153,6 +188,8 @@ public:
   void get_value(Value &value) const { value = value_; }
 
   const Value &get_value() const { return value_; }
+
+  Value& get_value() { return value_; }
 
 private:
   Value value_;
@@ -242,6 +279,8 @@ public:
   };
 
 public:
+  /*ConjunctionExpr(Type type, Expression *left, Expression *right);
+  ConjunctionExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);*/
   ConjunctionExpr(Type type, std::vector<std::unique_ptr<Expression>> &children);
   virtual ~ConjunctionExpr() = default;
 
@@ -254,10 +293,14 @@ public:
   Type conjunction_type() const { return conjunction_type_; }
 
   std::vector<std::unique_ptr<Expression>> &children() { return children_; }
+/*  std::unique_ptr<Expression> &left() { return left_; }
+  std::unique_ptr<Expression> &right() { return right_; }*/
 
 private:
   Type conjunction_type_;
   std::vector<std::unique_ptr<Expression>> children_;
+  /*std::unique_ptr<Expression> left_;
+  std::unique_ptr<Expression> right_;*/
 };
 
 /**
@@ -299,4 +342,85 @@ private:
   Type arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
+};
+
+/**
+ * @brief 子查询表达式
+ * @ingroup Expression
+ */
+class SubQueryExpr: public Expression {
+public:
+  SubQueryExpr(ParsedSqlNode &node): node_(node) {}
+  ParsedSqlNode& subquery_node() { return node_; }
+  RC get_value(const Tuple &tuple, Value &value) const override;
+  ExprType type() const override { return ExprType::SUBQUERY; }
+  AttrType value_type() const override { return UNDEFINED; }
+  const FieldMeta* field_meta() { return field_meta_; }
+  void set_field_meta(const FieldMeta* field_meta) { field_meta_ = field_meta; }
+  void set_physical_operator(PhysicalOperator* oper) { operator_ = oper; }
+  void set_trx(Trx* trx) { trx_ = trx; }
+
+private:
+  Trx* trx_;
+  const FieldMeta* field_meta_;
+  ParsedSqlNode node_;
+  PhysicalOperator* operator_;
+};
+
+/**
+ * @brief 列表表达式, 用于存储如 id in (col, 1, 2)中(col, 1, 2)这样的表达式
+ * @ingroup Expression
+ */
+class ListExpr: public Expression {
+public:
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::LIST; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  std::vector<std::unique_ptr<Expression>> children_;
+};
+
+/**
+ * @brief Relation, Attribute表达式, 后续需要转换为FieldExpr
+ * @ingroup Expression
+ */
+class RelAttrExpr: public Expression {
+public:
+  explicit RelAttrExpr(RelAttrSqlNode node) {  node_ = std::move(node); }
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::REL_ATTR; }
+  AttrType value_type() const override { return UNDEFINED; }
+  RelAttrSqlNode & node() { return node_; }
+private:
+  RelAttrSqlNode node_;
+};
+
+/**
+ * @brief 聚集函数或函数的表达式
+ * @ingroup Expression
+ */
+class FuncExpr: public Expression {
+public:
+  explicit FuncExpr(const FieldExpr& field) : child_(std::make_unique<FieldExpr>(field)) {}
+  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::FUNC; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
+  std::unique_ptr<Expression> child_;
+};
+
+/**
+ * @brief 表名表达式
+ * @ingroup Expression
+ */
+class TableExpr: public Expression {
+public:
+  explicit TableExpr(const std::string &name) : Expression(name) {}
+  explicit TableExpr(const std::string &name, const std::string &alias)
+      : Expression(name, alias) {}
+  RC get_value(const Tuple &tuple, Value &value) const override
+  { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::TABLE; }
+  AttrType value_type() const override { return UNDEFINED; }
+private:
 };

@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 class ProjectLogicalOperator : public LogicalOperator 
 {
 public:
-  ProjectLogicalOperator(const std::vector<Field> &fields);
+  ProjectLogicalOperator(const std::vector<Expression*> &fields);
   virtual ~ProjectLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -37,17 +37,14 @@ public:
     return LogicalOperatorType::PROJECTION;
   }
 
-  std::vector<std::unique_ptr<Expression>> &expressions()
+  std::vector<Expression*> &expressions()
   {
     return expressions_;
   }
-  const std::vector<std::unique_ptr<Expression>> &expressions() const
+
+  const std::vector<Expression*> &expressions() const
   {
     return expressions_;
-  }
-  const std::vector<Field> &fields() const
-  {
-    return fields_;
   }
 
 private:
@@ -55,5 +52,5 @@ private:
   //! 并不是所有的select都会查看表字段，也可能是常量数字、字符串，
   //! 或者是执行某个函数。所以这里应该是表达式Expression。
   //! 不过现在简单处理，就使用字段来描述
-  std::vector<Field> fields_;
+  std::vector<Expression*> expressions_;
 };

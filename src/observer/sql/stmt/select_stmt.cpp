@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include "event/sql_debug.h"
 
 SelectStmt::~SelectStmt()
 {
@@ -27,17 +28,19 @@ SelectStmt::~SelectStmt()
   }
 }
 
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
+static void wildcard_fields(Table *table, std::vector<Expression*> &field_expressions)
 {
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_metas.push_back(Field(table, table_meta.field(i)));
+    field_expressions.emplace_back(new FieldExpr(table, table_meta.field(i)));
   }
 }
 
 RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 {
+  RC rc = RC::SUCCESS;
+
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
     return RC::INVALID_ARGUMENT;
@@ -47,16 +50,19 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
-    // TODO: 表的别名
-    const char *table_name = select_sql.relations[i].c_str();
-    if (nullptr == table_name) {
+    if (select_sql.relations[i]->type() != ExprType::TABLE) {
+      LOG_WARN("invalid argument. relation type is not table. index=%d", i);
+      return RC::INVALID_ARGUMENT;
+    }
+    auto table_name = select_sql.relations[i]->name();
+    if (common::is_blank(table_name.c_str())) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
     }
 
-    Table *table = db->find_table(table_name);
+    Table *table = db->find_table(table_name.c_str());
     if (nullptr == table) {
-      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+      LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name.c_str());
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
 
@@ -64,102 +70,71 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
-  // collect query fields in `select` statement
-  std::vector<Field> query_fields;
-  bool has_aggregation = false;
-  bool has_attributes = false;
-  for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-    const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
-
-    if (relation_attr.func_type > FUNC_NONE && relation_attr.func_type < FUNC_AGG_END) {
-      has_aggregation = true;
-    } else {
-      has_attributes = true;
+  // 构建FieldExpr
+  if (tables.size() == 1) {
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      rc = FieldExpr::build_field(select_sql.attributes[i], tables[0]);
+      if(OB_FAIL(rc)) { return rc; };
     }
-    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
 
-    if (common::is_blank(relation_attr.relation_name.c_str()) &&
-        0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
-      // bison通配符聚合函数默认表名为空，attr为*
-      if (relation_attr.func_type != FUNC_NONE) {
-        if (relation_attr.func_type != FUNC_WCOUNT) {
-          return RC::SCHEMA_WRONG_FUNC;
-        }
-        Table *table = tables[0];
-        const FieldMeta *field_meta = table->table_meta().field(0);
-        auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-        field.set_alias(relation_attr.alias);
-        query_fields.push_back(field);
-      } else {
-          for (Table *table : tables) {
-            wildcard_fields(table, query_fields);
-          }
-      }
-    } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
-      const char *table_name = relation_attr.relation_name.c_str();
-      const char *field_name = relation_attr.attribute_name.c_str();
+    for (auto &condition : select_sql.conditions) {
+      rc = FieldExpr::build_field(condition, tables[0]);
+      if(OB_FAIL(rc)) { return rc; };
+    }
 
-      if (0 == strcmp(table_name, "*")) {
-        if (0 != strcmp(field_name, "*")) {
-          LOG_WARN("invalid field name while table is *. attr=%s", field_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
-        for (Table *table : tables) {
-          wildcard_fields(table, query_fields);
-        }
-      } else {
-        auto iter = table_map.find(table_name);
-        if (iter == table_map.end()) {
-          LOG_WARN("no such table in from list: %s", table_name);
-          return RC::SCHEMA_FIELD_MISSING;
-        }
+  } else {
+    for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+      rc = FieldExpr::build_field(select_sql.attributes[i], db);
+      if(OB_FAIL(rc)) { return rc; };
+    }
 
-        Table *table = iter->second;
-        if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, query_fields);
-        } else {
-          const FieldMeta *field_meta = table->table_meta().field(field_name);
-          if (nullptr == field_meta) {
-            LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), field_name);
-            return RC::SCHEMA_FIELD_MISSING;
-          }
-          // function只支持指定类型
-          if ((relation_attr.func_type == FUNC_LENGTH && field_meta->type() != CHARS) ||
-              (relation_attr.func_type == FUNC_ROUND && field_meta->type() != FLOATS) ||
-              (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
-            return RC::SCHEMA_WRONG_FUNC;
-          }
-          auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-          field.set_alias(relation_attr.alias);
-          query_fields.push_back(field);
-        }
-      }
-    } else {
-      if (tables.size() != 1) {
-        LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
-
-      Table *table = tables[0];
-      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
-      if (nullptr == field_meta) {
-        LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
-        return RC::SCHEMA_FIELD_MISSING;
-      }
-
-      // function只支持指定类型
-      if ((relation_attr.func_type == FUNC_LENGTH && field_meta->type() != CHARS) ||
-          (relation_attr.func_type == FUNC_ROUND && field_meta->type() != FLOATS) ||
-          (relation_attr.func_type == FUNC_DATE_FORMAT && field_meta->type() != DATES)) {
-        return RC::SCHEMA_WRONG_FUNC;
-      }
-      auto field = Field(table, field_meta, relation_attr.func_type, relation_attr.func_parm);
-      field.set_alias(relation_attr.alias);
-      query_fields.push_back(field);
+    for (auto &condition : select_sql.conditions) {
+      rc = FieldExpr::build_field(condition, db);
+      if(OB_FAIL(rc)) { return rc; };
     }
   }
+  // collect query fields in `select` statement
+  std::vector<Expression*> query_expressions;
+  bool has_aggregation = false;
+  bool has_attributes = false;
+  // 倒序处理是因为yacc_sql.y中select语句的attributes是尾插的
+  for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
+    Expression* relation_attr = select_sql.attributes[i];
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
+    // TODO: 判断relation_attr的类型后处理
+    switch (relation_attr->type()) {
+      case ExprType::FIELD: {
+        auto expr = dynamic_cast<FieldExpr*>(relation_attr);
+        auto type = expr->field().func_type();
+        if (type > FUNC_NONE && type < FUNC_AGG_END) {
+          has_aggregation = true;
+        } else {
+          has_attributes = true;
+        }
+
+        // function只支持指定类型
+        if ((type == FUNC_LENGTH && expr->field().meta()->type() != CHARS) ||
+            (type == FUNC_ROUND && expr->field().meta()->type() != FLOATS) ||
+            (type == FUNC_DATE_FORMAT && expr->field().meta()->type() != DATES)) {
+          return RC::SCHEMA_WRONG_FUNC;
+        }
+        query_expressions.emplace_back(relation_attr);
+      } break;
+      case ExprType::STAR: {
+        has_attributes = true;
+        for (Table *table : tables) {
+          wildcard_fields(table, query_expressions);
+        }
+      } break;
+      default:
+        sql_debug("Got error relation attribute: %d", relation_attr->type());
+        return RC::INTERNAL;
+    }
+
+    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
+  }
+
+  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_expressions.size());
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
@@ -168,11 +143,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
-  RC rc = FilterStmt::create(db,
+  rc = FilterStmt::create(db,
       default_table,
       &table_map,
-      select_sql.conditions.data(),
-      static_cast<int>(select_sql.conditions.size()),
+      select_sql.conditions,
       filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
@@ -181,9 +155,9 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
-  // TODO add expression copy
+
   select_stmt->tables_.swap(tables);
-  select_stmt->query_fields_.swap(query_fields);
+  select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
   stmt = select_stmt;
   return RC::SUCCESS;

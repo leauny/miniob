@@ -25,7 +25,7 @@ class Expression;
 struct UpdateSqlNode;
 
 /**
- * @defgroup SQLParser SQL Parser 
+ * @defgroup SQLParser SQL Parser
  */
 
 /**
@@ -55,18 +55,18 @@ enum FuncType : int
  */
 struct RelAttrSqlNode
 {
-  FuncType func_type{FUNC_NONE};    ///< function type            函数类型，默认为NONE代表非聚合函数
-  std::string func_parm{};          ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
-  std::string relation_name{};      ///< relation name (may be NULL) 表名, 也可以是别名
-  std::string attribute_name{};     ///< attribute name              属性名
-  std::string alias{};              ///< alias name                  别名
+  FuncType    func_type{FUNC_NONE};  ///< function type            函数类型，默认为NONE代表非聚合函数
+  std::string func_parm{};           ///< function parameter       函数的参数，比如round(f, 2)，这里就是2
+  std::string relation_name{};       ///< relation name (may be NULL) 表名, 也可以是别名
+  std::string attribute_name{};      ///< attribute name              属性名
+  std::string alias{};               ///< alias name                  别名
 };
 
 /**
  * @brief 描述比较运算符
  * @ingroup SQLParser
  */
-enum CompOp 
+enum CompOp
 {
   EQUAL_TO,     ///< "="
   LESS_EQUAL,   ///< "<="
@@ -91,21 +91,21 @@ enum CompOp
  */
 struct ConditionSqlNode
 {
-  int             left_is_attr;    ///< TRUE if left-hand side is an attribute
-                                   ///< 1时，操作符左边是属性名，0时，是属性值
-  Value           left_value;      ///< left-hand side value if left_is_attr = FALSE
-  RelAttrSqlNode  left_attr;       ///< left-hand side attribute
-  CompOp          comp;            ///< comparison operator
-  int             right_is_attr;   ///< TRUE if right-hand side is an attribute
-                                   ///< 1时，操作符右边是属性名，0时，是属性值
-  RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
-  Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
+  int left_is_attr;              ///< TRUE if left-hand side is an attribute
+                                 ///< 1时，操作符左边是属性名，0时，是属性值
+  Value          left_value;     ///< left-hand side value if left_is_attr = FALSE
+  RelAttrSqlNode left_attr;      ///< left-hand side attribute
+  CompOp         comp;           ///< comparison operator
+  int            right_is_attr;  ///< TRUE if right-hand side is an attribute
+                                 ///< 1时，操作符右边是属性名，0时，是属性值
+  RelAttrSqlNode right_attr;     ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
+  Value          right_value;    ///< right-hand side value if right_is_attr = FALSE
 };
 
 struct JoinSqlNode
 {
-  std::string relation_name;  ///< Relation to join
-  std::vector<ConditionSqlNode> conditions;
+  Expression               *relation_name;  ///< Relation to join
+  std::vector<Expression *> conditions;
 };
 
 /**
@@ -118,23 +118,20 @@ struct JoinSqlNode
  * where 条件 conditions，这里表示使用AND串联起来多个条件。正常的SQL语句会有OR，NOT等，
  * 甚至可以包含复杂的表达式。
  */
-
-struct SelectSqlNode
+struct SelectSqlNode  // selection
 {
-  // TODO: attributes更换为FieldExpr
-  std::vector<RelAttrSqlNode>     attributes;       ///< attributes in select clause
-  std::vector<std::string>        relations;        ///< 查询的表
-  std::vector<std::string>        relations_alias;  ///< 查询的表的别名
-  // TODO: conditions更改为ConjunctionExpr
   // 如 where 1 and c > 2
   // |- ConjunctionExpr (1)
   // L  ConjunctionExpr (c > 2)
   //     L  ComparisonExpr (c > 2)
   //         |- FieldExpr      (c)
   //         L  ArithmeticExpr (2)
-  std::vector<ConditionSqlNode>   conditions;       ///< 查询条件，使用AND串联起来多个条件
-  std::vector<std::vector<Value>> query_values;     ///< 子查询的结果
-  bool is_subquery{false}; ///< 是否是子查询
+
+  std::vector<Expression *> attributes;  ///< attributes in select clause
+  std::vector<Expression *> relations;   ///< from clause
+  std::vector<Expression *> conditions;  ///< where clause
+  // TODO: order by
+  // TODO: group by
 };
 
 /**
@@ -160,16 +157,25 @@ struct InsertSqlNode
 };
 
 /**
+ * @brief 描述一个update语句
+ * @ingroup SQLParser
+ */
+struct UpdateSqlNode
+{
+  std::string                                        relation_name;  ///< Relation to update
+  std::vector<std::pair<std::string, Expression *>> update_fields;  // 存储要更新的字段和值
+  std::vector<Expression *>                          conditions;
+};
+
+/**
  * @brief 描述一个delete语句
  * @ingroup SQLParser
  */
 struct DeleteSqlNode
 {
-  std::string                   relation_name;  ///< Relation to delete from
-  std::vector<ConditionSqlNode> conditions;
+  std::string               relation_name;  ///< Relation to delete from
+  std::vector<Expression *> conditions;
 };
-
-
 
 /**
  * @brief 描述一个属性
@@ -180,10 +186,10 @@ struct DeleteSqlNode
  */
 struct AttrInfoSqlNode
 {
-  AttrType    type;       ///< Type of attribute
-  std::string name;       ///< Attribute name
-  size_t      length;     ///< Length of attribute
-  bool        nullable{false}; ///< 是否允许为空
+  AttrType    type;             ///< Type of attribute
+  std::string name;             ///< Attribute name
+  size_t      length;           ///< Length of attribute
+  bool        nullable{false};  ///< 是否允许为空
 };
 
 /**
@@ -193,8 +199,8 @@ struct AttrInfoSqlNode
  */
 struct CreateTableSqlNode
 {
-  std::string                  relation_name;         ///< Relation name
-  std::vector<AttrInfoSqlNode> attr_infos;            ///< attributes
+  std::string                  relation_name;  ///< Relation name
+  std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
 };
 
 /**
@@ -213,7 +219,7 @@ struct DropTableSqlNode
  */
 struct ShowIndexSqlNode
 {
-  std::string relation_name;   ///< Relation name
+  std::string relation_name;  ///< Relation name
 };
 
 /**
@@ -319,7 +325,7 @@ enum SqlCommandFlag
   SCF_SHOW_TABLES,
   SCF_SHOW_INDEX,
   SCF_DESC_TABLE,
-  SCF_BEGIN,        ///< 事务开始语句，可以在这里扩展只读事务
+  SCF_BEGIN,  ///< 事务开始语句，可以在这里扩展只读事务
   SCF_COMMIT,
   SCF_CLOG_SYNC,
   SCF_ROLLBACK,
@@ -327,7 +333,7 @@ enum SqlCommandFlag
   SCF_HELP,
   SCF_EXIT,
   SCF_EXPLAIN,
-  SCF_SET_VARIABLE, ///< 设置变量
+  SCF_SET_VARIABLE,  ///< 设置变量
 };
 /**
  * @brief 表示一个SQL语句
@@ -336,45 +342,45 @@ enum SqlCommandFlag
 class ParsedSqlNode
 {
 public:
-  enum SqlCommandFlag       flag;
-  ErrorSqlNode              error;
-  CalcSqlNode               calc;
-  SelectSqlNode             selection;
-  InsertSqlNode             insertion;
-  DeleteSqlNode             deletion;
-  UpdateSqlNode             update;
-  CreateTableSqlNode        create_table;
-  DropTableSqlNode          drop_table;
-  ShowIndexSqlNode          show_index;
-  CreateIndexSqlNode        create_index;
-  DropIndexSqlNode          drop_index;
-  DescTableSqlNode          desc_table;
-  LoadDataSqlNode           load_data;
-  ExplainSqlNode            explain;
-  SetVariableSqlNode        set_variable;
+  enum SqlCommandFlag flag;
+  ErrorSqlNode        error;
+  CalcSqlNode         calc;
+  SelectSqlNode       selection;
+  InsertSqlNode       insertion;
+  DeleteSqlNode       deletion;
+  UpdateSqlNode       update;
+  CreateTableSqlNode  create_table;
+  DropTableSqlNode    drop_table;
+  ShowIndexSqlNode    show_index;
+  CreateIndexSqlNode  create_index;
+  DropIndexSqlNode    drop_index;
+  DescTableSqlNode    desc_table;
+  LoadDataSqlNode     load_data;
+  ExplainSqlNode      explain;
+  SetVariableSqlNode  set_variable;
 
 public:
   ParsedSqlNode();
-  ParsedSqlNode(const ParsedSqlNode& other) {
-    flag = other.flag;
-    error = other.error;
-    calc = other.calc;
-    selection = other.selection;
-    insertion = other.insertion;
-    deletion = other.deletion;
-    update = other.update;
+  ParsedSqlNode(const ParsedSqlNode &other)
+  {
+    flag         = other.flag;
+    error        = other.error;
+    calc         = other.calc;
+    selection    = other.selection;
+    insertion    = other.insertion;
+    deletion     = other.deletion;
+    update       = other.update;
     create_table = other.create_table;
-    drop_table = other.drop_table;
-    show_index = other.show_index;
+    drop_table   = other.drop_table;
+    show_index   = other.show_index;
     create_index = other.create_index;
-    drop_index = other.drop_index;
-    desc_table = other.desc_table;
-    load_data = other.load_data;
+    drop_index   = other.drop_index;
+    desc_table   = other.desc_table;
+    load_data    = other.load_data;
     set_variable = other.set_variable;
   }
   explicit ParsedSqlNode(SqlCommandFlag flag);
 };
-
 
 /**
  * @brief 表示语法解析后的数据
@@ -383,11 +389,8 @@ public:
 class ParsedSqlResult
 {
 public:
-  void add_sql_node(std::unique_ptr<ParsedSqlNode> sql_node);
-  std::vector<std::unique_ptr<ParsedSqlNode>> &sql_nodes()
-  {
-    return sql_nodes_;
-  }
+  void                                         add_sql_node(std::unique_ptr<ParsedSqlNode> sql_node);
+  std::vector<std::unique_ptr<ParsedSqlNode>> &sql_nodes() { return sql_nodes_; }
 
 private:
   std::vector<std::unique_ptr<ParsedSqlNode>> sql_nodes_;  ///< 这里记录SQL命令。虽然看起来支持多个，但是当前仅处理一个

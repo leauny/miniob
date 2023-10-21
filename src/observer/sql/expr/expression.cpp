@@ -14,6 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/physical_operator.h"
+#include "storage/db/db.h"
+
+class PhysicalOperator;
 
 using namespace std;
 
@@ -21,6 +25,117 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
+
+RC FieldExpr::build_field(Expression *expr, Table *table) {
+  RC rc = RC::SUCCESS;
+  if (!expr) {
+    LOG_WARN("Expr is null.");
+    return rc;
+  }
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      rc = create_field_expr(expr, table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+      auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = build_field(comparison_expr->left().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(comparison_expr->right().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+      for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+        rc = build_field(expression.get(), table);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    } break;
+    case ExprType::CAST: {
+      auto cast_expr = dynamic_cast<CastExpr*>(expr);
+      rc = build_field(cast_expr->child().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = build_field(arithmetic_expr->left().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(arithmetic_expr->right().get(), table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    default:
+      LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
+  }
+  return rc;
+}
+
+// multi-table
+RC FieldExpr::build_field(Expression *expr, Db* db) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      auto field_expr = dynamic_cast<FieldExpr*>(expr);
+      auto table = db->find_table(field_expr->get_node().relation_name.c_str());
+      rc = create_field_expr(expr, table);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::COMPARISON: {
+      auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = build_field(comparison_expr->left().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(comparison_expr->right().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+      for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+        rc = build_field(expression.get(), db);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    } break;
+    case ExprType::CAST: {
+      auto cast_expr = dynamic_cast<CastExpr*>(expr);
+      rc = build_field(cast_expr->child().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = build_field(arithmetic_expr->left().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_field(arithmetic_expr->right().get(), db);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    default:
+      LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
+  }
+  return rc;
+}
+
+RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
+  auto field_expr = dynamic_cast<FieldExpr*>(expr);
+  if (field_expr == nullptr) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  auto attr_node = field_expr->get_node();
+  auto attribute_name = attr_node.attribute_name.c_str();
+  auto alias = attr_node.alias.c_str();
+  auto parm = attr_node.func_parm;
+  auto type = attr_node.func_type;
+  auto field_meta = table->table_meta().field(attribute_name);
+  if (type == FUNC_WCOUNT) {
+    ASSERT(field_meta == nullptr, "Unknown error.");
+    field_meta = table->table_meta().field(0);
+  }
+  if (!field_meta) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  Field field(table, field_meta);
+  field_expr->set_name(attribute_name);
+  field_expr->set_alias(alias);
+  field_expr->set_field(field);
+  field_expr->field().set_func_type(type);
+  field_expr->field().set_func_parm(parm);
+  return RC::SUCCESS;
+}
+
 
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
@@ -172,6 +287,13 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     return rc;
   }
 
+  // TODO: type cast
+  if (left_value.attr_type() != right_value.attr_type()) {
+    // TODO: 搞一个类型转换匹配map, 用于匹配类型转换
+
+  }
+
+
   bool bool_value = false;
   rc = compare_value(left_value, right_value, bool_value);
   if (rc == RC::SUCCESS) {
@@ -181,6 +303,16 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+/*
+ConjunctionExpr::ConjunctionExpr(ConjunctionExpr::Type type, Expression *left, Expression *right)
+    : conjunction_type_(type), left_(left), right_(right) {}
+
+ConjunctionExpr::ConjunctionExpr(
+    ConjunctionExpr::Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right)
+    : conjunction_type_(type), left_(std::move(left)), right_(std::move(right)) {}
+*/
+
 ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
     : conjunction_type_(type), children_(std::move(children))
 {}
@@ -217,6 +349,7 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)
     : arithmetic_type_(type), left_(left), right_(right)
 {}
+
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, unique_ptr<Expression> left, unique_ptr<Expression> right)
     : arithmetic_type_(type), left_(std::move(left)), right_(std::move(right))
 {}
@@ -308,12 +441,20 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
   Value left_value;
   Value right_value;
 
-  rc = left_->get_value(tuple, left_value);
+  if (left_) {
+    rc = left_->get_value(tuple, left_value);
+  } else {
+    return RC::EXPRESSION_INVALID;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
+  if (right_) {
+    rc = right_->get_value(tuple, right_value);
+  } else {
+    return RC::EXPRESSION_INVALID;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     return rc;
@@ -343,4 +484,30 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const
+{
+  operator_->open(trx_);
+  std::vector<Tuple *> subquery_result;
+  while (RC::SUCCESS == operator_->next()) {
+    Tuple* t = operator_->current_tuple();
+    subquery_result.push_back(t);
+  }
+  if (subquery_result.empty()) {
+    value.set_null();
+    return RC::SUCCESS;
+  } else if (subquery_result.size() > 1) {
+    LOG_TRACE("subquery result is not a single value");
+    return RC::INTERNAL;
+  } else {
+    Tuple* t = subquery_result[0];
+    int cell_num = t->cell_num();
+    if (cell_num > 1) {
+      LOG_TRACE("subquery result is not a single value");
+      return RC::INTERNAL;
+    }
+    t->cell_at(0, value);
+    return RC::SUCCESS;
+  }
 }

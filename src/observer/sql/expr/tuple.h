@@ -266,7 +266,10 @@ public:
     return RC::UNIMPLENMENT;
   }
 
-  void set_size(int size) { values_.resize(size); }
+  void set_size(int size) {
+    values_.reserve(size);
+    values_.resize(size);
+  }
 
 private:
   std::vector<Value> values_;

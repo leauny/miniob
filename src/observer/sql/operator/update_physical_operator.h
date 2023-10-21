@@ -16,7 +16,7 @@
  class UpdatePhysicalOperator : public PhysicalOperator
  {
  public:
-   UpdatePhysicalOperator(Table *table, const std::vector<std::pair<Value, int>>& valueAndOffsets) : table_(table), values_and_offsets_(valueAndOffsets) {}
+   UpdatePhysicalOperator(Table *table, const std::vector<std::pair<Expression*, int>>& valueAndOffsets) : table_(table), expressions_and_offsets_(valueAndOffsets) {}
 
    virtual ~UpdatePhysicalOperator() = default;
 
@@ -36,7 +36,7 @@
 
  private:
    Table *table_ = nullptr;
-   std::vector<std::pair<Value, int>> values_and_offsets_;
+   std::vector<std::pair<Expression*, int>> expressions_and_offsets_;
    Trx *trx_ = nullptr;
  };
 

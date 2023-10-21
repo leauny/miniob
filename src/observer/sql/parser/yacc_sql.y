@@ -14,9 +14,9 @@
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/expr/expression.h"
 #include "sql/parser/yacc_sql.hpp"
 #include "sql/parser/lex_sql.h"
-#include "sql/expr/expression.h"
 
 using namespace std;
 
@@ -91,6 +91,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         FROM
         WHERE
         AND
+        OR
         SET
         ON
         AS
@@ -120,7 +121,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
   ParsedSqlNode *                               sql_node;
-  ConditionSqlNode *                            condition;
+  Expression *                                  condition;
   Value *                                       value;
   std::vector<Value> *                          record;
   enum CompOp                                   comp;
@@ -132,10 +133,12 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<Expression *> *                   expression_list;
   std::vector<Value> *                          value_list;
   std::vector<std::vector<Value>> *             record_list;
-  std::vector<ConditionSqlNode> *               condition_list;
-  std::vector<RelAttrSqlNode> *                 rel_attr_list;
-  std::vector<std::vector<std::string>> *       relation_list;   // relation_name, alias
-  std::vector<UpdateField> *                    update_list;
+  std::vector<Expression*>*                     condition_list;
+  std::vector<Expression*>*                     rel_attr_list;
+  std::vector<Expression*>*                     relation_list;
+  std::vector<
+    std::pair<std::string, Expression*>
+  > *                                           update_list;
   std::vector<JoinSqlNode> *                    join_list;
   std::vector<std::string> *                    field_list;
   char *                                        string;
@@ -149,6 +152,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
+%token <string> MIX_SUB
 %token <func_t> AGG
 %token <dates>  DATE
 //非终结符
@@ -173,6 +177,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
 %type <update_list>         update_list
+%type <expression>          rel_expr
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <join_list>           join_stmt
@@ -495,6 +500,10 @@ value:
       free(tmp);
     }
     |DATE {
+      if (!$1.ok()) {
+        LOG_WARN("date is invalid");
+        return -1;
+      }
       $$ = new Value((date)$1);
       @$ = @1;
     }
@@ -539,7 +548,6 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       $$->deletion.relation_name = $3;
       if ($4 != nullptr) {
         $$->deletion.conditions.swap(*$4);
-        delete $4;
       }
       free($3);
     }
@@ -549,50 +557,53 @@ update_stmt:      /*  update 语句的语法解析树*/
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.parser_update_fields.swap(*$4);
       if ($5 != nullptr) {
         $$->update.conditions.swap(*$5);
-        delete $5;
       }
+       if ($4 != nullptr) {
+         $$->update.update_fields.swap(*$4);
+       }
       free($2);
     }
     ;
 update_list:
     ID EQ value {
-      $$ = new std::vector<UpdateField>;
-      UpdateField field($1, *$3);
-      $$->emplace_back(field);
+      $$ = new std::vector<std::pair<std::string, Expression*>>;
+      $$->emplace_back(make_pair($1, new ValueExpr(*$3)));
+      free($1);
+      free($3);
     }
     | update_list COMMA ID EQ value
     {
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<UpdateField>;
+        $$ = new std::vector<std::pair<std::string, Expression*>>;
       }
-      UpdateField field($3, *$5);
-      $$->emplace_back(field);
+      $$->emplace_back(make_pair($3, new ValueExpr(*$5)));
+      free($3);
+      free($5);
     }
     | ID EQ subquery {
-      $$ = new std::vector<UpdateField>;
-      UpdateField field($1, $3);
-      $$->emplace_back(field);
+      $$ = new std::vector<std::pair<std::string, Expression*>>;
+      $$->emplace_back(make_pair($1, new SubQueryExpr(*$3)));
+      free($1);
+      delete $3;
     }
     | update_list COMMA ID EQ subquery
     {
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<UpdateField>;
+        $$ = new std::vector<std::pair<std::string, Expression*>>;
       }
-      UpdateField field($3, $5);
-      $$->emplace_back(field);
+      $$->emplace_back(make_pair($3, new SubQueryExpr(*$5)));
+      free($3);
     }
     ;
 subquery:
     LBRACE select_stmt RBRACE {
       $$ = $2;
-      $$->selection.is_subquery = true;
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
@@ -604,19 +615,15 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
-        $$->selection.relations = (*$5)[0];
-        $$->selection.relations_alias = (*$5)[1];
+        $$->selection.relations.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
-      $$->selection.relations_alias.push_back({});  // 无别名
+      $$->selection.relations.push_back(new TableExpr($4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
       free($4);
 
       if ($6 != nullptr) {
         $$->selection.conditions.swap(*$6);
-        delete $6;
       }
     }
     | SELECT select_attr FROM ID ID rel_list where
@@ -627,20 +634,16 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($6 != nullptr) {
-        $$->selection.relations = (*$6)[0];
-        $$->selection.relations_alias = (*$6)[1];
+        $$->selection.relations.swap(*$6);
         delete $6;
       }
-      $$->selection.relations.push_back($4);
-      $$->selection.relations_alias.push_back($5);
+      $$->selection.relations.push_back(new TableExpr($4, $5));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
       free($4);
       free($5);
 
       if ($7 != nullptr) {
         $$->selection.conditions.swap(*$7);
-        delete $7;
       }
     }
     | SELECT select_attr FROM ID AS ID rel_list where
@@ -651,14 +654,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($7 != nullptr) {
-        $$->selection.relations = (*$7)[0];
-        $$->selection.relations_alias = (*$7)[1];
+        $$->selection.relations.swap(*$7);
         delete $7;
       }
-      $$->selection.relations.push_back($4);
-      $$->selection.relations_alias.push_back($6);
+      $$->selection.relations.push_back(new TableExpr($4, $6));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      std::reverse($$->selection.relations_alias.begin(), $$->selection.relations_alias.end());
       free($4);
       free($6);
 
@@ -676,7 +676,6 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       if ($6 != nullptr) {
         $$->selection.conditions.swap(*$6);
-        delete $6;
       }
       if ($5 != nullptr) {
         for (auto &join : *$5) {
@@ -687,7 +686,7 @@ select_stmt:        /*  select 语句的语法解析树*/
         }
         delete $5;
       }
-      $$->selection.relations.push_back($4);
+      $$->selection.relations.push_back(new TableExpr($4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       free($4);
     }
@@ -697,20 +696,22 @@ select_attr:
       if ($2 != nullptr) {
         $$ = $2;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<Expression*>;
       }
-      RelAttrSqlNode attr;
-      attr.relation_name  = "";
-      attr.attribute_name = "*";
-      $$->emplace_back(attr);
+      $$->emplace_back(new StarExpr());
     }
     | rel_attr attr_list {
       if ($2 != nullptr) {
         $$ = $2;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<Expression*>;
       }
-      $$->emplace_back(*$1);
+      if (0 == strcmp($1->attribute_name.c_str(), "*") && $1->func_type != FUNC_WCOUNT) {
+        $$->emplace_back(new StarExpr());
+      } else {
+        FieldExpr* field = new FieldExpr(*$1);
+        $$->emplace_back(field);
+      }
       delete $1;
     }
     ;
@@ -721,19 +722,44 @@ rel_attr:
       $$->attribute_name = $1;
       free($1);
     }
-    | rel_attr ID {
-        // alias
-        $$ = $1;
+    | LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $2;
+      free($2);
+    }
+    | ID ID {
+        $$ = new RelAttrSqlNode;
+        $$->attribute_name = $1;
         $$->alias = $2;
+        free($1);
         free($2);
         LOG_DEBUG("alias: %s", $$->alias.c_str());
     }
-    | rel_attr AS ID {
-        // alias
-        $$ = $1;
+    | ID AS ID {
+        $$ = new RelAttrSqlNode;
+        $$->attribute_name = $1;
         $$->alias = $3;
+        free($1);
         free($3);
         LOG_DEBUG("alias: %s", $$->alias.c_str());
+    }
+    | ID DOT ID AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $5;
+      free($1);
+      free($3);
+      free($5);
+    }
+    | ID DOT ID ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $4;
+      free($1);
+      free($3);
+      free($4);
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
@@ -782,10 +808,9 @@ attr_list:
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<RelAttrSqlNode>;
+        $$ = new std::vector<Expression*>;
       }
-
-      $$->emplace_back(*$2);
+      $$->emplace_back(new FieldExpr(*$2));
       delete $2;
     }
     ;
@@ -799,22 +824,20 @@ rel_list:
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
+        $$ = new std::vector<Expression*>();
       }
 
-      (*$$)[0].push_back($2);
-      (*$$)[1].push_back({});
+      $$->emplace_back(new TableExpr($2));
       free($2);
     }
     | COMMA ID ID rel_list {
       if ($4 != nullptr) {
         $$ = $4;
       } else {
-        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
+        $$ = new std::vector<Expression*>();
       }
 
-      (*$$)[0].push_back($2);
-      (*$$)[1].push_back($3);
+      $$->emplace_back(new TableExpr($2, $3));
       free($2);
       free($3);
     }
@@ -822,11 +845,10 @@ rel_list:
       if ($5 != nullptr) {
         $$ = $5;
       } else {
-        $$ = new std::vector<std::vector<std::string>>(2, std::vector<std::string>());
+        $$ = new std::vector<Expression*>();
       }
 
-      (*$$)[0].push_back($2);
-      (*$$)[1].push_back($4);
+      $$->emplace_back(new TableExpr($2, $4));
       free($2);
       free($4);
     }
@@ -846,79 +868,183 @@ condition_list:
       $$ = nullptr;
     }
     | condition {
-      $$ = new std::vector<ConditionSqlNode>;
-      $$->emplace_back(*$1);
-      delete $1;
+      $$ = new std::vector<Expression*>;
+      std::vector<std::unique_ptr<Expression>> children;
+      children.emplace_back($1);
+      $$->emplace_back(new ConjunctionExpr(ConjunctionExpr::Type::AND, children));
     }
     | condition AND condition_list {
-      $$ = $3;
-      $$->emplace_back(*$1);
-      delete $1;
+      if ($3) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      std::vector<std::unique_ptr<Expression>> children;
+      children.emplace_back($1);
+      $$->emplace_back(new ConjunctionExpr(ConjunctionExpr::Type::AND, children));
+    }
+    | condition OR condition_list {
+      if ($3) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      std::vector<std::unique_ptr<Expression>> children;
+      children.emplace_back($1);
+      $$->emplace_back(new ConjunctionExpr(ConjunctionExpr::Type::OR, children));
     }
     ;
 condition:
-    rel_attr comp_op expression
+    rel_expr comp_op expression
     {
-
-      auto value_r = Value();
-      $3->try_get_value(value_r);
-
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 0;
-      $$->right_value = value_r;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
-    | rel_attr comp_op rel_attr
+    | expression comp_op rel_expr
     {
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 1;
-      $$->left_attr = *$1;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
-    | expression comp_op rel_attr
+    | condition comp_op rel_expr
     {
-      auto value_l = Value();
-      $1->try_get_value(value_l);
-
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = value_l;
-      $$->right_is_attr = 1;
-      $$->right_attr = *$3;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | condition comp_op expression
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
     | expression comp_op expression
     {
-      // 直接获取表达式的值, 只支持ArithmeticExpr或ValueExpr
-      auto value_l = Value();
-      auto value_r = Value();
-      $1->try_get_value(value_l);
-      $3->try_get_value(value_r);
-
-      $$ = new ConditionSqlNode;
-      $$->left_is_attr = 0;
-      $$->left_value = value_l;
-      $$->right_is_attr = 0;
-      $$->right_value = value_r;
-      $$->comp = $2;
-
-      delete $1;
-      delete $3;
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr comp_op rel_expr
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
     ;
+
+rel_expr:
+    rel_expr '+' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | '-' rel_expr %prec UMINUS {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::make_unique<ValueExpr>(Value(0)),
+        std::unique_ptr<Expression>($2)
+      );
+    }
+    | rel_expr '+' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '+' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '-' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '*' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '/' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | MIX_SUB {
+      // "col -5" situation
+      std::string str = $1;
+      auto pos = str.find("-");
+      ASSERT(pos != std::string::npos, "Wrong pattern.");
+      RelAttrSqlNode node;
+      node.attribute_name = str.substr(0, pos);
+
+      if (std::string::npos != str.find(".")) {
+        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+          std::make_unique<FieldExpr>(node),
+          std::make_unique<ValueExpr>(Value(std::stof(str.substr(pos + 1).c_str())))
+        );
+      } else {
+        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+          std::make_unique<FieldExpr>(node),
+          std::make_unique<ValueExpr>(Value(std::stoi(str.substr(pos + 1).c_str())))
+        );
+      }
+      free($1);
+    }
+    | rel_attr {
+      $$ = new FieldExpr(*$1);
+      free($1);
+    }
+    ;
+
 comp_op:
       EQ { $$ = EQUAL_TO; }
     | LT { $$ = LESS_THAN; }
@@ -935,10 +1061,9 @@ join_stmt:
     INNER_JOIN ID ON condition_list {
       $$ = new std::vector<JoinSqlNode>;
       JoinSqlNode join;
-      join.relation_name = $2;
+      join.relation_name = new TableExpr($2);
       join.conditions.swap(*$4);
       $$->emplace_back(join);
-      delete $4;
       free($2);
     }
     | INNER_JOIN ID ON condition_list join_stmt {
@@ -948,10 +1073,9 @@ join_stmt:
         $$ = new std::vector<JoinSqlNode>;
       }
       JoinSqlNode join;
-      join.relation_name = $2;
+      join.relation_name = new TableExpr($2);
       join.conditions.swap(*$4);
       $$->emplace_back(join);
-      delete $4;
       free($2);
     }
     ;
@@ -1000,7 +1124,8 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | '-' expression %prec UMINUS {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB,
+        new ValueExpr(Value(0)), $2, sql_string, &@$);
     }
     | value {
       $$ = new ValueExpr(*$1);

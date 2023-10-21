@@ -142,10 +142,11 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
 
   if (sql_event->sql_node()->flag == SCF_UPDATE) {
     UpdateSqlNode& update = sql_event->sql_node()->update;
-    for (auto& field : update.parser_update_fields) {
-      if (field.is_subquery) {
-        auto subquery = new SQLStageEvent(sql_event->session_event());
-        subquery->set_sql_node(std::unique_ptr<ParsedSqlNode>(field.subquery));
+    for (auto& [field, expr] : update.update_fields) {
+      if (expr->type() == ExprType::SUBQUERY) {
+        auto subquery_expr = dynamic_cast<SubQueryExpr *>(expr);
+        auto subquery      = new SQLStageEvent(sql_event->session_event());
+        subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
         SqlResult *sql_result = subquery->session_event()->sql_result();
         rc = resolve_stage_.handle_request(subquery);
         if (OB_FAIL(rc)) {
@@ -154,34 +155,16 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           return rc;
         }
 
+        // 生成子查询的物理执行计划操作符，留作后面处理
         rc = optimize_stage_.handle_request(subquery);
         if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
           LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
           sql_result->set_return_code(rc);
           return rc;
         }
-
-        rc = execute_stage_.handle_request(subquery);
-        if (OB_FAIL(rc)) {
-          LOG_TRACE("failed to do execute. rc=%s", strrc(rc));
-          sql_result->set_return_code(rc);
-          return rc;
-        }
-        if (subquery->sql_node()->selection.query_values.empty()) {
-          sql_debug("subquery result is null!");
-          Value new_value;
-          new_value.set_null();
-          field.value = new_value;
-        } else if (subquery->sql_node()->selection.query_values.size() > 1 || subquery->sql_node()->selection.query_values[0].size() > 1) {
-          sql_debug("subquery result is not a single value!");
-          LOG_TRACE("subquery result is not a single value");
-          sql_result->set_return_code(RC::INTERNAL);
-          return RC::INTERNAL;
-        } else {
-          field.value = subquery->sql_node()->selection.query_values[0][0];
-        }
+        subquery_expr->set_trx(subquery->session_event()->session()->current_trx());
+        subquery_expr->set_physical_operator(subquery->physical_operator().get());
       }
-      update.update_fields.push_back({field.field_name, field.value});
     }
   }
 

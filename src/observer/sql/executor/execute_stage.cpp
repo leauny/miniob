@@ -69,11 +69,18 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
       bool with_table_name = select_stmt->tables().size() > 1;
 
-      for (const Field &field : select_stmt->query_fields()) {
+      // TODO: 可能需要在这里判断别名冲突
+      for (const auto &expr : select_stmt->query_exprs()) {
+        // TODO: 支持表达式的话就不能转换为FieldExpr*了
+        auto e = dynamic_cast<FieldExpr*>(expr);
+        if (!e->alias().empty()) {
+          schema.append_cell(e->alias().c_str());
+          continue;
+        }
         if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name(), field.func_type());
+          schema.append_cell(e->field().table_name(), e->field().field_name(), e->field().func_type());
         } else {
-          schema.append_cell(nullptr, field.field_name(), field.func_type());
+          schema.append_cell(nullptr, e->field().field_name(), e->field().func_type());
         }
       }
     } break;
@@ -97,7 +104,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   sql_result->set_tuple_schema(schema);
   sql_result->set_operator(std::move(physical_operator));
 
-  if (stmt->type() == StmtType::SELECT && sql_event->sql_node()->selection.is_subquery) {
+  /*if (stmt->type() == StmtType::SELECT && sql_event->sql_node()->selection.is_subquery) {
     rc = sql_result->open();
     if (OB_FAIL(rc)) {
       sql_result->close();
@@ -122,6 +129,6 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     if (rc == RC::RECORD_EOF) {
       rc = RC::SUCCESS;
     }
-  }
+  }*/
   return rc;
 }

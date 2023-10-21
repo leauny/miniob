@@ -68,7 +68,7 @@ public:
 
   RC insert_record(Table *table, Record &record) override;
   RC delete_record(Table *table, Record &record) override;
-  RC update_record(Table *table, const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record) override;
+  RC update_record(Table *table, const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record) override;
 
   /**
    * @brief 当访问到某条数据时，使用此函数来判断是否可见，或者是否有访问冲突

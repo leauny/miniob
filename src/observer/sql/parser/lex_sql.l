@@ -122,6 +122,7 @@ CALC                                    RETURN_TOKEN(CALC);
 FROM                                    RETURN_TOKEN(FROM);
 WHERE                                   RETURN_TOKEN(WHERE);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);
 VALUES                                  RETURN_TOKEN(VALUES);
@@ -174,6 +175,10 @@ LIKE                                    RETURN_TOKEN(LIKE);
 "/"                                     { return yytext[0]; }
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
+
+{ID}-{DIGIT}+ |
+{ID}-{DIGIT}+{DOT}{DIGIT}+           yylval->string = strdup(yytext); RETURN_TOKEN(MIX_SUB);
+
 {ID}                                    {
                                             yylval->string = strdup(yytext);
                                             RETURN_TOKEN(ID);

@@ -30,7 +30,7 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  UpdateStmt(Table *table, const std::vector<std::pair<Value, int>>& valuesAndOffsets, FilterStmt* filterStmt);
+  UpdateStmt(Table *table, const std::vector<std::pair<Expression*, int>>& expressionsAndOffsets, FilterStmt* filterStmt);
 
   StmtType type() const override
   {
@@ -45,9 +45,9 @@ public:
   {
     return table_;
   }
-  const auto &values_and_offsets()
+  const auto &expressions_and_offsets()
   {
-    return values_and_offsets_;
+    return expressions_and_offsets_;
   }
   FilterStmt *filter_stmt() const
   {
@@ -56,6 +56,6 @@ public:
 
 private:
   Table *table_ = nullptr;
-  std::vector<std::pair<Value, int>> values_and_offsets_;
+  std::vector<std::pair<Expression*, int>> expressions_and_offsets_;
   FilterStmt *filter_stmt_ = nullptr;
 };

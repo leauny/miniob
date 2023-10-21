@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 class Db;
 class Table;
 class FieldMeta;
+class SelectStmt;
 
 struct FilterObj 
 {
@@ -92,23 +93,18 @@ class FilterStmt
 {
 public:
   FilterStmt() = default;
-  virtual ~FilterStmt();
+  ~FilterStmt() = default;
 
 public:
-  const std::vector<FilterUnit *> &filter_units() const
+  std::vector<std::unique_ptr<Expression>> &filter_expr()
   {
-    return filter_units_;
+    return filter_expr_;
   }
 
 public:
-  // TODO: 将ConditionSqlNode转换为FilterUnit
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
-
-  static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode &condition, FilterUnit *&filter_unit);
+      const std::vector<Expression*> conditions, FilterStmt *&stmt);
 
 private:
-  // TODO: 改为Expression, 直接在解析层面创建ast
-  std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  std::vector<std::unique_ptr<Expression>> filter_expr_;  // 默认当前都是AND关系
 };

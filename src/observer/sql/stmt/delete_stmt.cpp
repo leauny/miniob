@@ -31,6 +31,7 @@ DeleteStmt::~DeleteStmt()
 
 RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
 {
+  RC rc = RC::SUCCESS;
   const char *table_name = delete_sql.relation_name.c_str();
   if (nullptr == db || nullptr == table_name) {
     LOG_WARN("invalid argument. db=%p, table_name=%p", db, table_name);
@@ -47,9 +48,15 @@ RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
+  // 构建FieldExpr
+  for (auto &condition : delete_sql.conditions) {
+    rc = FieldExpr::build_field(condition, table);
+    if(OB_FAIL(rc)) { return rc; };
+  }
+
   FilterStmt *filter_stmt = nullptr;
-  RC rc = FilterStmt::create(
-      db, table, &table_map, delete_sql.conditions.data(), static_cast<int>(delete_sql.conditions.size()), filter_stmt);
+  rc = FilterStmt::create(
+      db, table, &table_map, delete_sql.conditions, filter_stmt);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;

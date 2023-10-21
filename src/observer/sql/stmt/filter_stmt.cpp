@@ -20,32 +20,29 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-FilterStmt::~FilterStmt()
-{
-  for (FilterUnit *unit : filter_units_) {
-    delete unit;
-  }
-  filter_units_.clear();
-}
-
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
+    const std::vector<Expression*> conditions, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt = nullptr;
 
   FilterStmt *tmp_stmt = new FilterStmt();
-  for (int i = 0; i < condition_num; i++) {
-    FilterUnit *filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
-    if (rc != RC::SUCCESS) {
-      delete tmp_stmt;
-      LOG_WARN("failed to create filter unit. condition index=%d", i);
-      return rc;
+  std::vector<std::unique_ptr<Expression>> cmp_exprs;
+
+  for (const auto condition : conditions) {
+    auto conjunc_expr = dynamic_cast<ConjunctionExpr*>(condition);
+    if (conjunc_expr->children().size() != 1) {
+      LOG_WARN("Too many condition in one ConjunctionExpr");
+      return RC::INTERNAL;
     }
-    tmp_stmt->filter_units_.push_back(filter_unit);
+    // 将条件都转换为bool类型
+    std::unique_ptr<Expression> tmp = std::unique_ptr<Expression>(
+        new CastExpr(std::move(conjunc_expr->children()[0]), AttrType::BOOLEANS));
+    conjunc_expr->children()[0].swap(tmp);
+    cmp_exprs.emplace_back(std::move(conjunc_expr->children()[0]));
   }
 
+  tmp_stmt->filter_expr_ = std::move(cmp_exprs);
   stmt = tmp_stmt;
   return rc;
 }
@@ -76,122 +73,4 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
   }
 
   return RC::SUCCESS;
-}
-
-RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode &condition, FilterUnit *&filter_unit)
-{
-  RC rc = RC::SUCCESS;
-
-  CompOp comp = condition.comp;
-  if (comp < EQUAL_TO || comp >= NO_OP) {
-    LOG_WARN("invalid compare operator : %d", comp);
-    return RC::INVALID_ARGUMENT;
-  }
-
-  filter_unit = new FilterUnit;
-
-  if (condition.left_is_attr) {
-    Table *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_left(filter_obj);
-  } else {
-    if (condition.left_value.attr_type() == DATES && !condition.left_value.get_date().ok()) {
-      LOG_WARN("invalid date value");
-      return RC::INVALID_ARGUMENT;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.left_value);
-    filter_unit->set_left(filter_obj);
-  }
-
-  if (condition.right_is_attr) {
-    Table *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_right(filter_obj);
-  } else {
-    if (condition.right_value.attr_type() == DATES && !condition.right_value.get_date().ok()) {
-      LOG_WARN("invalid date value");
-      return RC::INVALID_ARGUMENT;
-    }
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.right_value);
-    filter_unit->set_right(filter_obj);
-  }
-
-  filter_unit->set_comp(comp);
-
-  // 检查两个类型是否能够比较, 仅考虑左field，右value的情况
-  if (filter_unit->left().is_attr && !filter_unit->right().is_attr) {
-    const FieldMeta* left = filter_unit->left().field.meta();
-    FilterObj right = filter_unit->right();
-    AttrType type_left = left->type();
-    AttrType type_right = right.value.attr_type();
-
-    if (type_left != type_right) {
-      if (type_left == NULLS || type_right == NULLS) {
-        // do nothing, skip the type check and convert
-      } else if (!left->nullable() && type_right == NULLS) {
-        LOG_WARN("field type mismatch, field=%s, field type=%d, value_type=%d",
-              left->name(), type_left, type_right);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      } else if (type_left == CHARS) {
-        const char *data = right.value.get_string().c_str();
-        right.value.set_string(data, strlen(data));
-      } else if (type_left == INTS) {
-        int data;
-        switch (type_right) {
-          case CHARS: {
-            std::string v = (char *)right.value.data();
-            if (!('0' <= v[0] && v[0] <= '9')) {
-              data = 0;
-            } else {
-              data = std::stoi(v);
-            }
-          } break;
-          case FLOATS: {
-            float v = *(float *)right.value.data();
-            data    = (int)std::round(v);
-          } break;
-        }
-        right.value.set_int(data);
-      } else if (type_left == FLOATS) {
-        float data;
-        switch (type_right) {
-          case CHARS: {
-            std::string v = (char *)right.value.data();
-            if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
-              data = 0;
-            } else {
-              data = std::stof(v);
-            }
-          } break;
-          case INTS: {
-            int v = *(int *)right.value.data();
-            data  = (float)v;
-          } break;
-        }
-        right.value.set_float(data);
-      } else {
-        LOG_WARN("field type mismatch, field=%s, field type=%d, type_right=%d",
-        type_left, type_left, type_right);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-      }
-    }
-  }
-  return rc;
 }

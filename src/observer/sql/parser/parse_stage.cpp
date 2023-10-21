@@ -36,6 +36,7 @@ RC ParseStage::handle_request(SQLStageEvent *sql_event)
 
   ParsedSqlResult parsed_sql_result;
 
+  Session *s = sql_event->session_event()->session();
   rc = parse(sql.c_str(), &parsed_sql_result);
   if (rc != RC::SUCCESS) {
     sql_result->set_return_code(rc);
