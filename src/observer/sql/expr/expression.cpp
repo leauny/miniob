@@ -342,15 +342,6 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)
     : arithmetic_type_(type), left_(left), right_(right)
 {}
-ArithmeticExpr::ArithmeticExpr(char type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right)
-    : left_(std::move(left)), right_(std::move(right))
-{
-  if (type_map.count(type) != 1) {
-    LOG_WARN("Wrong operator %c, use '+' instead.", type);
-    arithmetic_type_ = Type::ADD;
-  }
-  arithmetic_type_ = type_map.at(type);
-}
 
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, unique_ptr<Expression> left, unique_ptr<Expression> right)
     : arithmetic_type_(type), left_(std::move(left)), right_(std::move(right))

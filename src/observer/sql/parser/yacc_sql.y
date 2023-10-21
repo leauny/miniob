@@ -937,79 +937,79 @@ condition:
 
 rel_expr:
     rel_expr '+' rel_expr {
-      $$ = new ArithmeticExpr('+',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '-' rel_expr {
-      $$ = new ArithmeticExpr('-',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '*' rel_expr {
-      $$ = new ArithmeticExpr('*',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '/' rel_expr {
-      $$ = new ArithmeticExpr('/',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | '-' rel_expr %prec UMINUS {
-      $$ = new ArithmeticExpr('-',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::make_unique<ValueExpr>(Value(0)),
         std::unique_ptr<Expression>($2)
       );
     }
     | rel_expr '+' expression {
-      $$ = new ArithmeticExpr('+',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '-' expression {
-      $$ = new ArithmeticExpr('-',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '*' expression {
-      $$ = new ArithmeticExpr('*',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr '/' expression {
-      $$ = new ArithmeticExpr('/',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | expression '+' rel_expr {
-      $$ = new ArithmeticExpr('+',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | expression '-' rel_expr {
-      $$ = new ArithmeticExpr('-',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | expression '*' rel_expr {
-      $$ = new ArithmeticExpr('*',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
     | expression '/' rel_expr {
-      $$ = new ArithmeticExpr('/',
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
@@ -1023,12 +1023,12 @@ rel_expr:
       node.attribute_name = str.substr(0, pos);
 
       if (std::string::npos != str.find(".")) {
-        $$ = new ArithmeticExpr('-',
+        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
           std::make_unique<FieldExpr>(node),
           std::make_unique<ValueExpr>(Value(std::stof(str.substr(pos + 1).c_str())))
         );
       } else {
-        $$ = new ArithmeticExpr('-',
+        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
           std::make_unique<FieldExpr>(node),
           std::make_unique<ValueExpr>(Value(std::stoi(str.substr(pos + 1).c_str())))
         );
@@ -1120,7 +1120,8 @@ expression:
       $$->set_name(token_name(sql_string, &@$));
     }
     | '-' expression %prec UMINUS {
-      $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+      $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB,
+        new ValueExpr(Value(0)), $2, sql_string, &@$);
     }
     | value {
       $$ = new ValueExpr(*$1);
