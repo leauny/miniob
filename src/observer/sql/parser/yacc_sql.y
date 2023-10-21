@@ -515,7 +515,7 @@ value:
         free($3);
     }
     ;
-    
+
 delete_stmt:    /*  delete 语句的语法解析树*/
     DELETE FROM ID where 
     {
@@ -870,10 +870,40 @@ condition:
       $$ = $2;
     }
     | rel_expr comp_op expression
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | expression comp_op rel_expr
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | condition comp_op rel_expr
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | condition comp_op expression
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | expression comp_op expression
+    {
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | rel_expr comp_op rel_expr
     {
       $$ = new ComparisonExpr($2,
@@ -888,32 +918,78 @@ rel_expr:
     {
       $$ = $2;
     }
-    | rel_expr '+' rel_expr
-    | rel_expr '+' expression
+    | rel_expr '+' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' rel_expr {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | '-' rel_expr %prec UMINUS {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::make_unique<ValueExpr>(Value(0)),
+        std::unique_ptr<Expression>($2)
+      );
+    }
+    | rel_expr '+' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' expression {
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
     | expression '+' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
-    | rel_expr '-' rel_expr
-    | rel_expr '-' expression
     | expression '-' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
-    | rel_expr '*' rel_expr
-    | rel_expr '*' expression
     | expression '*' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
     }
-    | rel_expr '/' rel_expr
-    | rel_expr '/' expression
     | expression '/' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
@@ -1009,7 +1085,12 @@ expression_list:
     }
     ;
 expression:
-    expression '+' expression {
+    LBRACE expression RBRACE
+    {
+      $$ = $2;
+      $$->set_name(token_name(sql_string, &@$));
+    }
+    | expression '+' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
     }
     | expression '-' expression {
@@ -1020,10 +1101,6 @@ expression:
     }
     | expression '/' expression {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
-    }
-    | LBRACE expression RBRACE {
-      $$ = $2;
-      $$->set_name(token_name(sql_string, &@$));
     }
     | '-' expression %prec UMINUS {
       $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB,
