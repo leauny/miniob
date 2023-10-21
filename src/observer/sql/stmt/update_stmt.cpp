@@ -56,7 +56,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       if (!value_expr) {
         return RC::INVALID_ARGUMENT;
       }
-      Value value = value_expr->get_value();
+      Value& value = value_expr->get_value();
 
       // check the type valid
       rc = value_cast(field_meta, value);
