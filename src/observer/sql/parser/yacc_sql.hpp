@@ -148,13 +148,14 @@ union YYSTYPE
     std::pair<std::string, Expression*>
   > *                                           update_list;
   std::vector<JoinSqlNode> *                    join_list;
+  std::vector<std::string> *                    field_list;
   char *                                        string;
   int                                           number;
   float                                         floats;
   date                                          dates;
   bool                                          bools;
 
-#line 158 "yacc_sql.hpp"
+#line 159 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
