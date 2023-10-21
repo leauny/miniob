@@ -175,6 +175,10 @@ LIKE                                    RETURN_TOKEN(LIKE);
 "/"                                     { return yytext[0]; }
 \"[^"]*\"                               yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 '[^']*\'                                yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
+
+{ID}-{DIGIT}+ |
+{ID}-{DIGIT}+{DOT}{DIGIT}+           yylval->string = strdup(yytext); RETURN_TOKEN(MIX_SUB);
+
 {ID}                                    {
                                             yylval->string = strdup(yytext);
                                             RETURN_TOKEN(ID);

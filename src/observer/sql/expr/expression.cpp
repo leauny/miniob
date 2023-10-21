@@ -24,6 +24,10 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
 
 RC FieldExpr::build_field(Expression *expr, Table *table) {
   RC rc = RC::SUCCESS;
+  if (!expr) {
+    LOG_WARN("Expr is null.");
+    return rc;
+  }
   switch (expr->type()) {
     case ExprType::FIELD: {
       rc = create_field_expr(expr, table);
@@ -338,6 +342,16 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)
     : arithmetic_type_(type), left_(left), right_(right)
 {}
+ArithmeticExpr::ArithmeticExpr(char type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right)
+    : left_(std::move(left)), right_(std::move(right))
+{
+  if (type_map.count(type) != 1) {
+    LOG_WARN("Wrong operator %c, use '+' instead.", type);
+    arithmetic_type_ = Type::ADD;
+  }
+  arithmetic_type_ = type_map.at(type);
+}
+
 ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, unique_ptr<Expression> left, unique_ptr<Expression> right)
     : arithmetic_type_(type), left_(std::move(left)), right_(std::move(right))
 {}
@@ -429,12 +443,20 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
   Value left_value;
   Value right_value;
 
-  rc = left_->get_value(tuple, left_value);
+  if (left_) {
+    rc = left_->get_value(tuple, left_value);
+  } else {
+    return RC::EXPRESSION_INVALID;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
+  if (right_) {
+    rc = right_->get_value(tuple, right_value);
+  } else {
+    return RC::EXPRESSION_INVALID;
+  }
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     return rc;

@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 #include "storage/field/field.h"
@@ -314,8 +315,17 @@ public:
     NEGATIVE,
   };
 
+  const std::pmr::unordered_map<char, Type> type_map = {
+      {'+', Type::ADD},
+      {'-', Type::SUB},
+      {'*', Type::MUL},
+      {'/', Type::DIV},
+      {'-', Type::NEGATIVE},
+  };
+
 public:
   ArithmeticExpr(Type type, Expression *left, Expression *right);
+  ArithmeticExpr(char type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   ArithmeticExpr(Type type, std::unique_ptr<Expression> left, std::unique_ptr<Expression> right);
   virtual ~ArithmeticExpr() = default;
 

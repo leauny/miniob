@@ -168,6 +168,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
+%token <string> MIX_SUB
 %token <func_t> AGG
 %token <dates>  DATE
 //非终结符
@@ -191,6 +192,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
 %type <update_list>         update_list
+%type <expression>          rel_expr
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <join_list>           join_stmt
@@ -730,6 +732,11 @@ rel_attr:
       $$->attribute_name = $1;
       free($1);
     }
+    | LBRACE ID RBRACE {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $2;
+      free($2);
+    }
     | ID ID {
         $$ = new RelAttrSqlNode;
         $$->attribute_name = $1;
@@ -898,44 +905,142 @@ condition_list:
     }
     ;
 condition:
-    rel_attr comp_op expression
-    {
-      auto value_r = Value();
-      $3->try_get_value(value_r);
-      $$ = new ComparisonExpr($2,
-            std::unique_ptr<FieldExpr>(new FieldExpr(*$1)),
-            std::make_unique<ValueExpr>(value_r)
-            );
-    }
-    | rel_attr comp_op rel_attr
+    rel_expr comp_op expression
     {
       $$ = new ComparisonExpr($2,
-            std::unique_ptr<FieldExpr>(new FieldExpr(*$1)),
-            std::unique_ptr<FieldExpr>(new FieldExpr(*$3))
-            );
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
-    | expression comp_op rel_attr
+    | expression comp_op rel_expr
     {
-      auto value_l = Value();
-      $1->try_get_value(value_l);
-      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::unique_ptr<FieldExpr>(new FieldExpr(*$3)));
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
-    | expression comp_op expression
+    | condition comp_op rel_expr
     {
-      // 直接获取表达式的值, 只支持ArithmeticExpr或ValueExpr
-      auto value_l = Value();
-      auto value_r = Value();
-      $1->try_get_value(value_l);
-      $3->try_get_value(value_r);
-      $$ = new ComparisonExpr($2, std::make_unique<ValueExpr>(value_l), std::make_unique<ValueExpr>(value_r));
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
-    | expression
+    | condition comp_op expression
     {
-      auto value = Value();
-      $1->try_get_value(value);
-      $$ = new ValueExpr(value);
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
     }
     ;
+
+rel_expr:
+    rel_expr '+' rel_expr {
+      $$ = new ArithmeticExpr('+',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' rel_expr {
+      $$ = new ArithmeticExpr('-',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' rel_expr {
+      $$ = new ArithmeticExpr('*',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' rel_expr {
+      $$ = new ArithmeticExpr('/',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | '-' rel_expr %prec UMINUS {
+      $$ = new ArithmeticExpr('-',
+        std::make_unique<ValueExpr>(Value(0)),
+        std::unique_ptr<Expression>($2)
+      );
+    }
+    | rel_expr '+' expression {
+      $$ = new ArithmeticExpr('+',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '-' expression {
+      $$ = new ArithmeticExpr('-',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '*' expression {
+      $$ = new ArithmeticExpr('*',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | rel_expr '/' expression {
+      $$ = new ArithmeticExpr('/',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '+' rel_expr {
+      $$ = new ArithmeticExpr('+',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '-' rel_expr {
+      $$ = new ArithmeticExpr('-',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '*' rel_expr {
+      $$ = new ArithmeticExpr('*',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | expression '/' rel_expr {
+      $$ = new ArithmeticExpr('/',
+        std::unique_ptr<Expression>($1),
+        std::unique_ptr<Expression>($3)
+      );
+    }
+    | MIX_SUB {
+      // "col -5" situation
+      std::string str = $1;
+      auto pos = str.find("-");
+      ASSERT(pos != std::string::npos, "Wrong pattern.");
+      RelAttrSqlNode node;
+      node.attribute_name = str.substr(0, pos);
+
+      if (std::string::npos != str.find(".")) {
+        $$ = new ArithmeticExpr('-',
+          std::make_unique<FieldExpr>(node),
+          std::make_unique<ValueExpr>(Value(std::stof(str.substr(pos + 1).c_str())))
+        );
+      } else {
+        $$ = new ArithmeticExpr('-',
+          std::make_unique<FieldExpr>(node),
+          std::make_unique<ValueExpr>(Value(std::stoi(str.substr(pos + 1).c_str())))
+        );
+      }
+      free($1);
+    }
+    | rel_attr {
+      $$ = new FieldExpr(*$1);
+      free($1);
+    }
+    ;
+
 comp_op:
       EQ { $$ = EQUAL_TO; }
     | LT { $$ = LESS_THAN; }
