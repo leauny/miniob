@@ -99,7 +99,7 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, std::unique_ptr<Lo
     return rc;
   }
 
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, update_stmt->values_and_offsets()));
+  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, update_stmt->expressions_and_offsets()));
 
   if (predicate_oper) {
     predicate_oper->add_child(std::move(table_get_oper));

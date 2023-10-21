@@ -16,6 +16,9 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 #include <chrono>
+#include "common/rc.h"
+class FieldMeta;
+
 
 using date=std::chrono::year_month_day;
 /**
@@ -125,3 +128,5 @@ private:
   std::string str_value_;
   date date_value_;
 };
+
+RC value_cast(const FieldMeta* field_meta, Value &value);

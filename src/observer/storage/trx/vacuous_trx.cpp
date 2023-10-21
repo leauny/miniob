@@ -61,9 +61,9 @@ RC VacuousTrx::delete_record(Table *table, Record &record)
   return table->delete_record(record);
 }
 
-RC VacuousTrx::update_record(Table *table, const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
+RC VacuousTrx::update_record(Table *table, const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record)
 {
-  return table->update_record(values_and_offsets, record);
+  return table->update_record(expressions_and_offsets, record);
 }
 
 RC VacuousTrx::visit_record(Table *table, Record &record, bool readonly)

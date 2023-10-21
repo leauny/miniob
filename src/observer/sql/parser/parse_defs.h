@@ -163,7 +163,7 @@ struct InsertSqlNode
 struct UpdateSqlNode
 {
   std::string                                        relation_name;  ///< Relation to update
-  std::vector<std::pair<Expression *, Expression *>> update_fields;  // 存储要更新的字段和值
+  std::vector<std::pair<std::string, Expression *>> update_fields;  // 存储要更新的字段和值
   std::vector<Expression *>                          conditions;
 };
 

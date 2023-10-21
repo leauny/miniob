@@ -185,7 +185,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
   return RC::SUCCESS;
 }
 
-RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
+RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record)
 {
   Field begin_field;
   Field end_field;
@@ -202,14 +202,14 @@ RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Value, int>>
 
   end_field.set_int(record, -trx_id_);
 
-  RC rc = table->update_record(values_and_offsets, record);
+  RC rc = table->update_record(expressions_and_offsets, record);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to update record into table. rc=%s", strrc(rc));
     return rc;
   }
 
-  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(),
-      values_and_offsets[0].second, values_and_offsets[0].first.data());
+//  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(),
+//      expressions_and_offsets[0].second, expressions_and_offsets[0].first));
   ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
 

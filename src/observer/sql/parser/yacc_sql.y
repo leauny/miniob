@@ -17,12 +17,8 @@
 #include "sql/expr/expression.h"
 #include "sql/parser/yacc_sql.hpp"
 #include "sql/parser/lex_sql.h"
-#include "storage/db/db.h"
-#include "storage/field/field_meta.h"
 
 using namespace std;
-
-Db* __current_db;
 
 string token_name(const char *sql_string, YYLTYPE *llocp)
 {
@@ -37,19 +33,6 @@ int yyerror(YYLTYPE *llocp, const char *sql_string, ParsedSqlResult *sql_result,
   error_sql_node->error.column = llocp->first_column;
   sql_result->add_sql_node(std::move(error_sql_node));
   return 0;
-}
-
-FieldExpr *create_field_expr(const RelAttrSqlNode &node) {
-  Table* table = __current_db->find_table(node.relation_name.c_str());
-  const FieldMeta* field = table->table_meta().field(node.attribute_name.c_str());
-
-  auto expr = new FieldExpr(table, field);
-  expr->set_name(field->name());
-  expr->set_alias(node.relation_name.c_str());
-  expr->field().set_func_type(node.func_type);
-  expr->field().set_func_parm(node.func_parm.c_str());
-
-  return expr;
 }
 
 ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
@@ -154,7 +137,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<Expression*>*                     rel_attr_list;
   std::vector<Expression*>*                     relation_list;
   std::vector<
-    std::pair<Expression*, Expression*>
+    std::pair<std::string, Expression*>
   > *                                           update_list;
   std::vector<JoinSqlNode> *                    join_list;
   char *                                        string;
@@ -557,23 +540,16 @@ update_stmt:      /*  update 语句的语法解析树*/
       if ($5 != nullptr) {
         $$->update.conditions.swap(*$5);
       }
-      for (auto &[expr, value] : *$4) {
-        auto rel = dynamic_cast<RelAttrExpr*>(expr);
-        if (!rel) { std::cout << "Wrong type." << std::endl; }
-        rel->node().relation_name = $2; 
-        $$->update.update_fields.emplace_back(
-          std::make_pair(create_field_expr(rel->node()), value)
-        );
-      }
+       if ($4 != nullptr) {
+         $$->update.update_fields.swap(*$4);
+       }
       free($2);
     }
     ;
 update_list:
     ID EQ value {
-      $$ = new std::vector<std::pair<Expression*, Expression*>>;
-      RelAttrSqlNode tmp;
-      tmp.attribute_name = $1;
-      $$->emplace_back(make_pair(new RelAttrExpr(tmp), new ValueExpr(*$3)));
+      $$ = new std::vector<std::pair<std::string, Expression*>>;
+      $$->emplace_back(make_pair($1, new ValueExpr(*$3)));
       free($1);
       free($3);
     }
@@ -582,32 +558,26 @@ update_list:
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<std::pair<Expression*, Expression*>>;
+        $$ = new std::vector<std::pair<std::string, Expression*>>;
       }
-      RelAttrSqlNode tmp;
-      tmp.attribute_name = $3;
-      $$->emplace_back(make_pair(new RelAttrExpr(tmp), new ValueExpr(*$5)));
+      $$->emplace_back(make_pair($3, new ValueExpr(*$5)));
       free($3);
       free($5);
     }
     | ID EQ subquery {
-      $$ = new std::vector<std::pair<Expression*, Expression*>>;
-      RelAttrSqlNode tmp;
-      tmp.attribute_name = $1;
-      $$->emplace_back(make_pair(new RelAttrExpr(tmp), new SubQueryExpr($3->selection)));
+      $$ = new std::vector<std::pair<std::string, Expression*>>;
+      $$->emplace_back(make_pair($1, new SubQueryExpr(*$3)));
       free($1);
-      delete $3;  // new SubQueryExpr($3->selection)已经move了部分字段，可能有问题
+      delete $3;
     }
     | update_list COMMA ID EQ subquery
     {
       if ($1 != nullptr) {
         $$ = $1;
       } else {
-        $$ = new std::vector<std::pair<Expression*, Expression*>>;
+        $$ = new std::vector<std::pair<std::string, Expression*>>;
       }
-      RelAttrSqlNode tmp;
-      tmp.attribute_name = $3;
-      $$->emplace_back(make_pair(new RelAttrExpr(tmp), new SubQueryExpr($5->selection)));
+      $$->emplace_back(make_pair($3, new SubQueryExpr(*$5)));
       free($3);
     }
     ;
@@ -1169,13 +1139,11 @@ opt_semicolon: /*empty*/
 //_____________________________________________________________________
 extern void scan_string(const char *str, yyscan_t scanner);
 
-int sql_parse(Db* db, const char *s, ParsedSqlResult *sql_result) {
-  __current_db = db;
+int sql_parse(const char *s, ParsedSqlResult *sql_result) {
   yyscan_t scanner;
   yylex_init(&scanner);
   scan_string(s, scanner);
   int result = yyparse(s, sql_result, scanner);
   yylex_destroy(scanner);
-  __current_db = nullptr;
   return result;
 }

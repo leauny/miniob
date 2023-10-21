@@ -18,11 +18,13 @@ See the Mulan PSL v2 for more details. */
 #include <regex>
 #include <cmath>
 #include "sql/parser/value.h"
-#include "storage/field/field.h"
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
+#include "common/rc.h"
+#include "storage/field/field_meta.h"
 
+class FielsdMeta;
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls","floats",  "booleans" };
 
 const char *attr_type_to_string(AttrType type)
@@ -538,3 +540,59 @@ date Value::string_to_date(const char * data, int length)
   return ymd;
 }
 std::string Value::get_date_format() const { return date_format_; }
+
+RC value_cast(const FieldMeta* field_meta, Value &value) {
+  AttrType field_type = field_meta->type();
+  AttrType value_type = value.attr_type();
+  if (field_type != value_type) {
+    if (field_meta->nullable() && value_type == NULLS) {
+      // do nothing, skip the type check and convert
+    } else if (!field_meta->nullable() && value_type == NULLS) {
+      LOG_WARN("field type mismatch. field=%s, field type=%d, value_type=%d",
+          field_meta->name(), field_type, value_type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    } else if (field_type == CHARS) {
+      const char *data = value.get_string().c_str();
+      value.set_string(data, strlen(data));
+    } else if (field_type == INTS) {
+      int data;
+      switch (value_type) {
+        case CHARS: {
+          std::string v = (char *)value.data();
+          if (!('0' <= v[0] && v[0] <= '9')) {
+            data = 0;
+          } else {
+            data = std::stoi(v);
+          }
+        } break;
+        case FLOATS: {
+          float v = *(float *)value.data();
+          data    = (int)std::round(v);
+        } break;
+      }
+      value.set_int(data);
+    } else if (field_type == FLOATS) {
+      float data;
+      switch (value_type) {
+        case CHARS: {
+          std::string v = (char *)value.data();
+          if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
+            data = 0;
+          } else {
+            data = std::stof(v);
+          }
+        } break;
+        case INTS: {
+          int v = *(int *)value.data();
+          data  = (float)v;
+        } break;
+      }
+      value.set_float(data);
+    } else {
+      LOG_WARN("field type mismatch. field=%s, field type=%d, value_type=%d",
+          field_meta->name(), field_type, value_type);
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  }
+  return RC::SUCCESS;
+}

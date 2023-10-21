@@ -29,6 +29,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/index/index.h"
 #include "storage/index/bplus_tree_index.h"
 #include "storage/trx/trx.h"
+#include "sql/expr/expression.h"
 
 Table::~Table()
 {
@@ -487,12 +488,26 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
-RC Table::update_record(const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record)
+RC Table::update_record(const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record)
 {
-  for (auto& [value, offset] : values_and_offsets) {
-    memcpy(record.data() + offset, value.data(), value.length());
+  RC rc = RC::SUCCESS;
+  Record update_record = record;
+  // delete old record
+  rc = delete_record(record);
+  if (OB_FAIL(rc)) {
+    LOG_ERROR("Failed to delete old record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
+    return rc;
   }
-  return RC::SUCCESS;
+  for (auto& [expr, offset] : expressions_and_offsets) {
+    const Value value = dynamic_cast<ValueExpr*>(expr)->get_value();
+    memcpy(update_record.data() + offset, value.data(), value.length());
+  }
+  rc = insert_record(update_record);
+  if (OB_FAIL(rc)) {
+    LOG_ERROR("Failed to insert new record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
+    return rc;
+  }
+  return rc;
 }
 
 RC Table::insert_entry_of_indexes(const char *record, const RID &rid)

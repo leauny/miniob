@@ -14,6 +14,10 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/physical_operator.h"
+#include "storage/db/db.h"
+
+class PhysicalOperator;
 
 using namespace std;
 
@@ -477,4 +481,30 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   }
 
   return calc_value(left_value, right_value, value);
+}
+
+RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const
+{
+  operator_->open(trx_);
+  std::vector<Tuple *> subquery_result;
+  while (RC::SUCCESS == operator_->next()) {
+    Tuple* t = operator_->current_tuple();
+    subquery_result.push_back(t);
+  }
+  if (subquery_result.empty()) {
+    value.set_null();
+    return RC::SUCCESS;
+  } else if (subquery_result.size() > 1) {
+    LOG_TRACE("subquery result is not a single value");
+    return RC::INTERNAL;
+  } else {
+    Tuple* t = subquery_result[0];
+    int cell_num = t->cell_num();
+    if (cell_num > 1) {
+      LOG_TRACE("subquery result is not a single value");
+      return RC::INTERNAL;
+    }
+    t->cell_at(0, value);
+    return RC::SUCCESS;
+  }
 }

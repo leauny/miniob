@@ -26,6 +26,7 @@ See the Mulan PSL v2 for more details. */
 
 class Db;
 class Tuple;
+class PhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -188,6 +189,8 @@ public:
 
   const Value &get_value() const { return value_; }
 
+  Value& get_value() { return value_; }
+
 private:
   Value value_;
 };
@@ -347,18 +350,21 @@ private:
  */
 class SubQueryExpr: public Expression {
 public:
-  explicit SubQueryExpr(SelectSqlNode &node) {
-    attributes_ = std::move(node.attributes);
-    relations_ = std::move(node.relations);
-    conditions_ = std::move(node.conditions);
-  };
-  RC get_value(const Tuple &tuple, Value &value) const override { return RC::UNIMPLENMENT; }
+  SubQueryExpr(ParsedSqlNode &node): node_(node) {}
+  ParsedSqlNode& subquery_node() { return node_; }
+  RC get_value(const Tuple &tuple, Value &value) const override;
   ExprType type() const override { return ExprType::SUBQUERY; }
   AttrType value_type() const override { return UNDEFINED; }
+  const FieldMeta* field_meta() { return field_meta_; }
+  void set_field_meta(const FieldMeta* field_meta) { field_meta_ = field_meta; }
+  void set_physical_operator(PhysicalOperator* oper) { operator_ = oper; }
+  void set_trx(Trx* trx) { trx_ = trx; }
+
 private:
-  std::vector<Expression*>        attributes_;         ///< attributes in select clause
-  std::vector<Expression*>        relations_;          ///< from clause
-  std::vector<Expression*>        conditions_;         ///< where clause
+  Trx* trx_;
+  const FieldMeta* field_meta_;
+  ParsedSqlNode node_;
+  PhysicalOperator* operator_;
 };
 
 /**

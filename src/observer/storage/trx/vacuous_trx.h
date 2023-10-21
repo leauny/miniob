@@ -42,7 +42,7 @@ public:
   virtual ~VacuousTrx() = default;
 
   RC insert_record(Table *table, Record &record) override;
-  RC update_record(Table *table, const std::vector<std::pair<Value, int>>& values_and_offsets, Record &record);
+  RC update_record(Table *table, const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record);
   RC delete_record(Table *table, Record &record) override;
   RC visit_record(Table *table, Record &record, bool readonly) override;
   RC start_if_need() override;
