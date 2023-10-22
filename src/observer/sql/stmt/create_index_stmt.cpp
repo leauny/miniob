@@ -67,5 +67,9 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
     stmt = new CreateIndexStmt(table, field_meta, create_index.index_name);
   }
 
+  if (create_index.is_unique) {
+    CreateIndexStmt* create_index_stmt = (CreateIndexStmt*)stmt;
+    create_index_stmt->set_unique(true);
+  }
   return RC::SUCCESS;
 }

@@ -93,7 +93,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <dates>  DATE
 //非终结符
 
-//标识tokens
 %token  SEMICOLON
         CREATE
         DROP
@@ -150,6 +149,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NOT_NULL
         IS
         IS_NOT
+        UNIQUE
 
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -199,6 +199,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            exit_stmt
 %type <sql_node>            command_wrapper
 %type <bools>               is_nullable
+%type <bools>               is_unique
 // commands should be a list but I use a single command instead
 %type <sql_node>            commands
 
@@ -302,20 +303,31 @@ desc_table_stmt:
     ;
 
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE id_list RBRACE
+    CREATE is_unique INDEX ID ON ID LBRACE id_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
-      create_index.index_name = $3;
-      create_index.relation_name = $5;
-      create_index.attribute_names.swap(*$7);
+      create_index.is_unique = $2;
+      create_index.index_name = $4;
+      create_index.relation_name = $6;
+      create_index.attribute_names.swap(*$8);
       if (create_index.attribute_names.size() > 1) {
         create_index.is_multi_index = true;
       }
       create_index.attribute_name = create_index.attribute_names[0];
-      free($3);
-      free($5);
-      free($7);
+      free($2)
+      free($4); 
+      free($6);
+      free($8);
+    }
+    ;
+is_unique:
+    /* empty */
+    {
+      $$ = false;
+    }
+    | UNIQUE {
+      $$ = true;
     }
     ;
 id_list:
@@ -495,7 +507,7 @@ value:
       free(tmp);
     }
     |DATE {
-      if (!$1.ok()) {
+      if (!($1).ok()) {
         LOG_WARN("date is invalid");
         return -1;
       }

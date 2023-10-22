@@ -488,6 +488,71 @@ RC Table::delete_record(const Record &record)
   return rc;
 }
 
+RC Table::create_index(Trx *trx, const std::vector<const FieldMeta *> &field_metas, const char *index_name) {
+  // 检查索引是否已经存在
+  if (get_index(index_name)) {
+    LOG_WARN("Index already exists. table name=%s, index name=%s", name(), index_name);
+    return RC::INDEX_EXISTS;
+  }
+
+  // 创建新的索引元数据
+  IndexMeta index_meta;
+  index_meta.set_name(index_name);
+  index_meta.set_file_id(indexes_.size());
+  index_meta.set_attr_id(-1);
+  index_meta.set_unique(false);
+  for (const auto &field_meta : field_metas) {
+    index_meta.add_field_meta(*field_meta);
+  }
+
+  // 创建新的索引
+  Index *index = new BplusTreeIndex();
+  RC rc = index->create(index_file(base_dir_.c_str(), name(), index_name), index_meta, field_metas);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("Failed to create index. table name=%s, index name=%s, rc=%s", name(), index_name, strrc(rc));
+    delete index;
+    return rc;
+  }
+
+  // 将新的索引添加到索引列表中
+  indexes_.push_back(index);
+
+  // 更新表元数据
+  TableMeta new_table_meta = table_meta_;
+  new_table_meta.add_index_meta(index_meta);
+
+  // 内存中有一份元数据，磁盘文件也有一份元数据。修改磁盘文件时，先创建一个临时文件，写入完成后再rename为正式文件
+  // 这样可以防止文件内容不完整
+  // 创建元数据临时文件
+  std::string tmp_file = table_meta_file(base_dir_.c_str(), name()) + ".tmp";
+  std::fstream fs;
+  fs.open(tmp_file, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open file for write. file name=%s, errmsg=%s", tmp_file.c_str(), strerror(errno));
+    return RC::IOERR_OPEN;  // 创建索引中途出错，要做还原操作
+  }
+  if (new_table_meta.serialize(fs) < 0) {
+    LOG_ERROR("Failed to dump new table meta to file: %s. sys err=%d:%s", tmp_file.c_str(), errno, strerror(errno));
+    return RC::IOERR_WRITE;
+  }
+  fs.close();
+
+  // 覆盖原始元数据文件
+  std::string meta_file = table_meta_file(base_dir_.c_str(), name());
+  int ret = rename(tmp_file.c_str(), meta_file.c_str());
+  if (ret != 0) {
+    LOG_ERROR("Failed to rename tmp meta file (%s) to normal meta file (%s) while creating index (%s) on table (%s). "
+              "system error=%d:%s",
+              tmp_file.c_str(), meta_file.c_str(), index_name, name(), errno, strerror(errno));
+    return RC::IOERR_WRITE;
+  }
+
+  table_meta_.swap(new_table_meta);
+
+  LOG_INFO("Successfully added a new index (%s) on the table (%s)", index_name, name());
+  return rc;
+}
+
 RC Table::update_record(const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record)
 {
   RC rc = RC::SUCCESS;

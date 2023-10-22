@@ -48,6 +48,7 @@ public:
 public:
   const char *name() const;
   const char *field() const;
+  const std::vector<std::string> &fields() const;
 
   void desc(std::ostream &os) const;
   IndexType type() const { return type_; }

@@ -50,6 +50,8 @@ public:
   const FieldMeta *field_meta() const { return field_meta_; }
   std::vector<const FieldMeta *> field_metas() const { return field_metas_; }
   const std::string &index_name() const { return index_name_; }
+  void set_unique(bool is_unique) { is_unique_ = is_unique; }
+  bool is_unique() const { return is_unique_; }
   bool is_multi_index() const { return is_multi_index_; }
 
 public:
@@ -60,5 +62,6 @@ private:
   const FieldMeta *field_meta_ = nullptr;
   std::vector<const FieldMeta *> field_metas_;
   std::string index_name_;
+  bool is_unique_{false};
   bool is_multi_index_{false};
 };

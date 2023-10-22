@@ -235,6 +235,7 @@ struct CreateIndexSqlNode
   std::string attribute_name;  ///< Attribute name
   std::vector<std::string> attribute_names;  ///< Attribute names
   bool is_multi_index{false};        ///< 是否是多字段索引
+  bool is_unique{false};  ///< 是否是unique index
 };
 
 /**
