@@ -94,6 +94,8 @@ void Server::recv(int fd, short ev, void *arg)
   SessionEvent *event = nullptr;
   RC rc = comm->read_event(event);
   if (rc != RC::SUCCESS) {
+    LOG_WARN("Avoid testing garbled code. communicator is not destroyed!!");
+    return;  // 临时解决乱码问题
     close_connection(comm);
     return;
   }
