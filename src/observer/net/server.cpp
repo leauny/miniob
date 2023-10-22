@@ -323,11 +323,14 @@ int Server::start_stdin_server()
     SessionEvent *event = nullptr;
     rc = communicator->read_event(event);
     if (OB_FAIL(rc)) {
+      if (rc == RC::EMPTY_CMD) {
+        continue;
+      }
       LOG_WARN("failed to read event. rc=%s", strrc(rc));
       return -1;
     }
 
-    if (event == nullptr) {
+    if (event == nullptr || !started_) {
       break;
     }
 
