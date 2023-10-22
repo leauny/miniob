@@ -31,5 +31,10 @@ RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
   
   Trx *trx = session->current_trx();
   Table *table = create_index_stmt->table();
-  return table->create_index(trx, create_index_stmt->field_meta(), create_index_stmt->index_name().c_str());
+
+  if (create_index_stmt->is_multi_index()) {
+    return table->create_index(trx, create_index_stmt->field_metas()[0], create_index_stmt->index_name().c_str());
+  } else {
+    return table->create_index(trx, create_index_stmt->field_meta(), create_index_stmt->index_name().c_str());
+  }
 }

@@ -76,6 +76,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
     std::pair<std::string, Expression*>
   > *                                           update_list;
   std::vector<JoinSqlNode> *                    join_list;
+  std::vector<std::string> *                    field_list;
   char *                                        string;
   int                                           number;
   float                                         floats;
@@ -164,6 +165,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <record_list>         record_list
+%type <field_list>          id_list
 %type <expression_list>     where
 %type <expression_list>     condition_list
 %type <expression_list>     select_attr
@@ -300,16 +302,34 @@ desc_table_stmt:
     ;
 
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE INDEX ID ON ID LBRACE id_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
       create_index.index_name = $3;
       create_index.relation_name = $5;
-      create_index.attribute_name = $7;
+      create_index.attribute_names.swap(*$7);
+      if (create_index.attribute_names.size() > 1) {
+        create_index.is_multi_index = true;
+      }
+      create_index.attribute_name = create_index.attribute_names[0];
       free($3);
       free($5);
       free($7);
+    }
+    ;
+id_list:
+    ID
+    {
+      $$ = new std::vector<std::string>;
+      $$->push_back($1);
+      free($1);
+    }
+    | id_list COMMA ID
+    {
+      $$ = $1;
+      $$->push_back($3);
+      free($3);
     }
     ;
 

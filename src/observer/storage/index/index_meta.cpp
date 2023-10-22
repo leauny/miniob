@@ -34,6 +34,19 @@ RC IndexMeta::init(const char *name, const FieldMeta &field)
   return RC::SUCCESS;
 }
 
+RC IndexMeta::init(const char *name, const std::vector<const FieldMeta *> &fields) {
+  if (common::is_blank(name)) {
+    LOG_ERROR("Failed to init index, name is empty.");
+    return RC::INVALID_ARGUMENT;
+  }
+
+  name_ = name;
+  for (auto &field : fields) {
+    fields_.emplace_back(field->name());
+  }
+  return RC::SUCCESS;
+}
+
 void IndexMeta::to_json(Json::Value &json_value) const
 {
   json_value[FIELD_NAME] = name_;
@@ -79,3 +92,4 @@ void IndexMeta::desc(std::ostream &os) const
 {
   os << "index name=" << name_ << ", field=" << field_;
 }
+
