@@ -25,7 +25,7 @@ RC Index::init(const IndexMeta &index_meta, const std::vector<const FieldMeta *>
 {
   index_meta_ = index_meta;
   for (auto &field_meta : field_metas) {
-    field_metas_.emplace_back(*field_meta);
+    fields_metas_.push_back(*const_cast<FieldMeta*>(field_meta));
   }
   return RC::SUCCESS;
 }

@@ -117,7 +117,8 @@ extern int yydebug;
     NOT_NULL = 318,                /* NOT_NULL  */
     IS = 319,                      /* IS  */
     IS_NOT = 320,                  /* IS_NOT  */
-    UMINUS = 321                   /* UMINUS  */
+    UNIQUE = 321,                  /* UNIQUE  */
+    UMINUS = 322                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -151,7 +152,7 @@ union YYSTYPE
   date                                          dates;
   bool                                          bools;
 
-#line 155 "yacc_sql.hpp"
+#line 156 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

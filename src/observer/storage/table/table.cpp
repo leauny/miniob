@@ -490,9 +490,9 @@ RC Table::delete_record(const Record &record)
 
 RC Table::create_index(Trx *trx, const std::vector<const FieldMeta *> &field_metas, const char *index_name) {
   // 检查索引是否已经存在
-  if (get_index(index_name)) {
-    LOG_WARN("Index already exists. table name=%s, index name=%s", name(), index_name);
-    return RC::INDEX_EXISTS;
+  if (common::is_blank(index_name) || field_metas.empty()) {
+    LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
+    return RC::INVALID_ARGUMENT;
   }
 
   // 创建新的索引元数据
