@@ -269,7 +269,7 @@ class MiniObClient:
   测试客户端。使用TCP连接，向服务器发送命令并反馈结果
   '''
 
-  def __init__(self, server_port: int, server_socket: str, time_limit:int = 10):
+  def __init__(self, server_port: int, server_socket: str, time_limit:int = 20):
     if (server_port < 0 or server_port > 65535) and server_socket is None:
       raise(Exception("Invalid server port: " + str(server_port)))
 
@@ -780,25 +780,25 @@ class TestSuite:
           eval_result.append_message('Failed to start server.')
           return False
 
-        _logger.info(test_case.get_name() + " starting ...")
+        _logger.info("\033[36m" + test_case.get_name() + " starting ...\033[0m")
         result = self.run_case(test_case)
 
         if result is Result.true:
-          _logger.info("Case passed: %s", test_case.get_name())
+          _logger.info("\033[32mCase passed: %s\033[0m", test_case.get_name())
           success_count += 1
-          eval_result.append_message("%s is success" % test_case.get_name())
+          eval_result.append_message("\033[32m%s is success\033[0m" % test_case.get_name())
         else: 
 
           if result is Result.false:
-            _logger.info("Case failed: %s", test_case.get_name())
+            _logger.info("\033[31mCase failed: %s\033[0m", test_case.get_name())
             failure_count += 1
-            eval_result.append_message("%s is error" % test_case.get_name())
+            eval_result.append_message("\033[31m%s is error\033[0m" % test_case.get_name())
           else:
-            _logger.info("Case timeout: %s", test_case.get_name())
+            _logger.info("\033[33mCase timeout: %s\033[0m", test_case.get_name())
             timeout_count += 1
-            eval_result.append_message("%s is timeout" % test_case.get_name())
+            eval_result.append_message("\033[33m%s is timeout\033[0m" % test_case.get_name())
       except Exception as ex:
-        _logger.error("Failed to run case %s", test_case.get_name())
+        _logger.error("\033[31mFailed to run case %s\033[0m", test_case.get_name())
         self.__clean_server_if_need()
         raise ex
 
@@ -1068,10 +1068,10 @@ def run(options) -> Tuple[bool, str]:
     #eval_result.clear_message()
     eval_result.append_message(str(ex.args))
 
-  return result, eval_result.to_json_string()
+  return result, eval_result
 
 if __name__ == '__main__':
-  os.setpgrp()
+  # os.setpgrp()
   options = __init_options()
 
   result, evaluation = run(options)
