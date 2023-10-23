@@ -126,6 +126,29 @@ private:
   AttrComparator attr_comparator_;
 };
 
+class UniqueKeyComparator
+{
+public:
+  void init(AttrType type, int length)
+  {
+    attr_comparator_.init(type, length);
+  }
+
+  const AttrComparator &attr_comparator() const
+  {
+    return attr_comparator_;
+  }
+
+  int operator()(const char *v1, const char *v2) const
+  {
+    int result = attr_comparator_(v1, v2);
+    return result;
+  }
+
+private:
+  AttrComparator attr_comparator_;
+};
+
 /**
  * @brief 属性打印,调试使用(BplusTree)
  * @ingroup BPlusTree
@@ -364,6 +387,7 @@ public:
    * 如果key已经存在，会设置found的值。
    */
   int lookup(const KeyComparator &comparator, const char *key, bool *found = nullptr) const;
+  int lookup(const UniqueKeyComparator &comparator, const char *key, bool *found = nullptr) const;
 
   void insert(int index, const char *key, const char *value);
   void remove(int index);
@@ -559,7 +583,7 @@ protected:
   RC redistribute(Frame *neighbor_frame, Frame *frame, Frame *parent_frame, int index);
 
   RC insert_entry_into_parent(LatchMemo &latch_memo, Frame *frame, Frame *new_frame, const char *key);
-  RC insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *pkey, const RID *rid);
+  RC insert_entry_into_leaf_node(LatchMemo &latch_memo, Frame *frame, const char *pkey, const RID *rid, bool is_unique);
   RC create_new_tree(const char *key, const RID *rid);
 
   void update_root_page_num(PageNum root_page_num);
@@ -568,7 +592,7 @@ protected:
   RC adjust_root(LatchMemo &latch_memo, Frame *root_frame);
 
 private:
-  common::MemPoolItem::unique_ptr make_key(const char *user_key, const RID &rid, bool is_unique);
+  common::MemPoolItem::unique_ptr make_key(const char *user_key, const RID &rid);
   void free_key(char *key);
 
 protected:
@@ -581,6 +605,7 @@ protected:
   common::SharedMutex   root_lock_;
 
   KeyComparator   key_comparator_;
+  UniqueKeyComparator unique_key_comparator_;
   KeyPrinter      key_printer_;
 
   std::unique_ptr<common::MemPoolItem> mem_pool_item_;
