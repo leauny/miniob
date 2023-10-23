@@ -1348,7 +1348,7 @@ RC BplusTreeHandler::create_new_tree(const char *key, const RID *rid)
   return rc;
 }
 
-MemPoolItem::unique_ptr BplusTreeHandler::make_key(const char *user_key, const RID &rid)
+MemPoolItem::unique_ptr BplusTreeHandler::make_key(const char *user_key, const RID &rid, bool is_unique)
 {
   MemPoolItem::unique_ptr key = mem_pool_item_->alloc_unique_ptr();
   if (key == nullptr) {
@@ -1356,18 +1356,19 @@ MemPoolItem::unique_ptr BplusTreeHandler::make_key(const char *user_key, const R
     return nullptr;
   }
   memcpy(static_cast<char *>(key.get()), user_key, file_header_.attr_length);
-  memcpy(static_cast<char *>(key.get()) + file_header_.attr_length, &rid, sizeof(rid));
+  if (!is_unique) {
+    memcpy(static_cast<char *>(key.get()) + file_header_.attr_length, &rid, sizeof(rid));
+  }
   return key;
 }
 
-RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid)
+RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid, bool is_unique)
 {
   if (user_key == nullptr || rid == nullptr) {
     LOG_WARN("Invalid arguments, key is empty or rid is empty");
     return RC::INVALID_ARGUMENT;
   }
-
-  MemPoolItem::unique_ptr pkey = make_key(user_key, *rid);
+  MemPoolItem::unique_ptr pkey = make_key(user_key, *rid, is_unique);
   if (pkey == nullptr) {
     LOG_WARN("Failed to alloc memory for key.");
     return RC::NOMEM;
@@ -1618,7 +1619,7 @@ RC BplusTreeHandler::delete_entry_internal(LatchMemo &latch_memo, Frame *leaf_fr
   return coalesce_or_redistribute<LeafIndexNodeHandler>(latch_memo, leaf_frame);
 }
 
-RC BplusTreeHandler::delete_entry(const char *user_key, const RID *rid)
+RC BplusTreeHandler::delete_entry(const char *user_key, const RID *rid, bool is_unique)
 {
   MemPoolItem::unique_ptr pkey = mem_pool_item_->alloc_unique_ptr();
   if (nullptr == pkey) {
@@ -1628,7 +1629,9 @@ RC BplusTreeHandler::delete_entry(const char *user_key, const RID *rid)
   char *key = static_cast<char *>(pkey.get());
 
   memcpy(key, user_key, file_header_.attr_length);
-  memcpy(key + file_header_.attr_length, rid, sizeof(*rid));
+  if (!is_unique) {
+    memcpy(key + file_header_.attr_length, rid, sizeof(*rid));
+  }
 
   BplusTreeOperationType op = BplusTreeOperationType::DELETE;
   LatchMemo latch_memo(disk_buffer_pool_);
@@ -1709,9 +1712,9 @@ RC BplusTreeScanner::open(const char *left_user_key, int left_len, bool left_inc
 
     MemPoolItem::unique_ptr left_pkey;
     if (left_inclusive) {
-      left_pkey = tree_handler_.make_key(fixed_left_key, *RID::min());
+      left_pkey = tree_handler_.make_key(fixed_left_key, *RID::min(), false);
     } else {
-      left_pkey = tree_handler_.make_key(fixed_left_key, *RID::max());
+      left_pkey = tree_handler_.make_key(fixed_left_key, *RID::max(), false);
     }
 
     const char *left_key = (const char *)left_pkey.get();
@@ -1774,9 +1777,9 @@ RC BplusTreeScanner::open(const char *left_user_key, int left_len, bool left_inc
       }
     }
     if (right_inclusive) {
-      right_key_ = tree_handler_.make_key(fixed_right_key, *RID::max());
+      right_key_ = tree_handler_.make_key(fixed_right_key, *RID::max(), false);
     } else {
-      right_key_ = tree_handler_.make_key(fixed_right_key, *RID::min());
+      right_key_ = tree_handler_.make_key(fixed_right_key, *RID::min(), false);
     }
 
     if (fixed_right_key != right_user_key) {

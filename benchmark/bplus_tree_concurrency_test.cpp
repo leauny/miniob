@@ -98,7 +98,7 @@ public:
       const char *key = reinterpret_cast<const char *>(&value);
       RID         rid(value, value);
 
-      [[maybe_unused]] RC rc = handler_.insert_entry(key, &rid);
+      [[maybe_unused]] RC rc = handler_.insert_entry(key, &rid, false);
       ASSERT(rc == RC::SUCCESS, "failed to insert entry into btree. key=%" PRIu32, value);
     }
   }
@@ -117,7 +117,7 @@ public:
     const char *key = reinterpret_cast<const char *>(&value);
     RID         rid(value, value);
 
-    RC rc = handler_.insert_entry(key, &rid);
+    RC rc = handler_.insert_entry(key, &rid, false);
     switch (rc) {
       case RC::SUCCESS: {
         stat.insert_success_count++;
@@ -136,7 +136,7 @@ public:
     const char *key = reinterpret_cast<const char *>(&value);
     RID         rid(value, value);
 
-    RC rc = handler_.delete_entry(key, &rid);
+    RC rc = handler_.delete_entry(key, &rid, false);
     switch (rc) {
       case RC::SUCCESS: {
         stat.delete_success_count++;

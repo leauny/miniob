@@ -31,19 +31,18 @@ class Value;
  * @details 一个索引包含了表的哪些字段，索引的名称等。
  * 如果以后实现了多种类型的索引，还需要记录索引的类型，对应类型的一些元数据等
  */
-enum IndexType
+enum class IndexType
 {
-  SINGLE_INDEX = 0,
-  MULTI_INDEX = 1,
-  UNIQUE_INDEX = 2,
+  NORMAL_INDEX = 0,
+  UNIQUE_INDEX = 1,
 };
 class IndexMeta 
 {
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field);
-  RC init(const char *name, const std::vector<const FieldMeta *> &fields);
+  RC init(const char *name, const FieldMeta &field, bool is_unique);
+  RC init(const char *name, const std::vector<const FieldMeta *> &fields, bool is_unique);
 
 public:
   const char *name() const;
@@ -61,5 +60,5 @@ protected:
   std::string name_;   // index's name
   std::string field_;  // field's name
   std::vector<std::string> fields_;
-  IndexType type_ = SINGLE_INDEX;
+  IndexType type_ = IndexType::NORMAL_INDEX;
 };

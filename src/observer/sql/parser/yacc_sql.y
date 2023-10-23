@@ -315,7 +315,6 @@ create_index_stmt:    /*create index 语句的语法解析树*/
         create_index.is_multi_index = true;
       }
       create_index.attribute_name = create_index.attribute_names[0];
-      free($2)
       free($4); 
       free($6);
       free($8);

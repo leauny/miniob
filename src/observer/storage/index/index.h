@@ -45,6 +45,10 @@ public:
     return index_meta_;
   }
 
+  bool is_unique() const
+  {
+    return index_meta_.type() == IndexType::UNIQUE_INDEX;
+  }
   /**
    * @brief 插入一条数据
    * 
