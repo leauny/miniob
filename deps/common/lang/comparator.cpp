@@ -21,9 +21,25 @@ using date = std::chrono::year_month_day;
 
 namespace common {
 
+int check_null_type(void *arg1, void *arg2) {
+  const char* c1 = (char*)arg1;
+  const char* c2 = (char*)arg2;
+  if (0 == strcmp(c1, "\7\7\7") && 0 == strcmp(c2, "\7\7\7")) {
+    return 0;
+  } else if (0 == strcmp(c1, "\7\7\7")) {
+    return -1;
+  } else if (0 == strcmp(c2, "\7\7\7")) {
+    return 1;
+  }
+  return 999;
+}
 
 int compare_int(void *arg1, void *arg2)
 {
+  int ret = check_null_type(arg1, arg2);
+  if (ret != 999) {
+    return ret;
+  }
   int v1 = *(int *)arg1;
   int v2 = *(int *)arg2;
   return v1 - v2;
@@ -31,6 +47,10 @@ int compare_int(void *arg1, void *arg2)
 
 int compare_float(void *arg1, void *arg2)
 {
+  int ret = check_null_type(arg1, arg2);
+  if (ret != 999) {
+    return ret;
+  }
   float v1 = *(float *)arg1;
   float v2 = *(float *)arg2;
   float cmp = v1 - v2;
@@ -45,6 +65,10 @@ int compare_float(void *arg1, void *arg2)
 
 int compare_string(void *arg1, int arg1_max_length, void *arg2, int arg2_max_length)
 {
+  int ret = check_null_type(arg1, arg2);
+  if (ret != 999) {
+    return ret;
+  }
   const char *s1 = (const char *)arg1;
   const char *s2 = (const char *)arg2;
   int maxlen = std::min(arg1_max_length, arg2_max_length);
@@ -64,6 +88,10 @@ int compare_string(void *arg1, int arg1_max_length, void *arg2, int arg2_max_len
 }
 
 int compare_date(void *arg1, void *arg2) {
+  int ret = check_null_type(arg1, arg2);
+  if (ret != 999) {
+    return ret;
+  }
   date *d1 = (date *)arg1;
   date *d2 = (date *)arg2;
   if (*d1 < *d2) {
