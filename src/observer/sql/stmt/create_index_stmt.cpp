@@ -56,7 +56,6 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
       field_metas.push_back(field);
     }
     stmt = new CreateIndexStmt(table, field_metas, create_index.index_name);
-    return RC::SUCCESS;
   } else {
     const FieldMeta *field_meta = table->table_meta().field(create_index.attribute_name.c_str());
     if (nullptr == field_meta) {
