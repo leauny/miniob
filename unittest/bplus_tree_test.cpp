@@ -318,9 +318,9 @@ TEST(test_bplus_tree, test_leaf_index_node_handle)
   index_file_header.root_page = BP_INVALID_PAGE_NUM;
   index_file_header.internal_max_size = 5;
   index_file_header.leaf_max_size = 5;
-  index_file_header.attr_length = 4;
+  index_file_header.attr_length.push_back(4);
   index_file_header.key_length = 4 + sizeof(RID);
-  index_file_header.attr_type = INTS;
+  index_file_header.attr_type.push_back(INTS);
 
   Frame frame;
 
@@ -375,9 +375,9 @@ TEST(test_bplus_tree, test_internal_index_node_handle)
   index_file_header.root_page = BP_INVALID_PAGE_NUM;
   index_file_header.internal_max_size = 5;
   index_file_header.leaf_max_size = 5;
-  index_file_header.attr_length = 4;
+  index_file_header.attr_length.push_back(4);
   index_file_header.key_length = 4 + sizeof(RID);
-  index_file_header.attr_type = INTS;
+  index_file_header.attr_type.push_back(INTS);
 
   Frame frame;
 
@@ -472,7 +472,11 @@ TEST(test_bplus_tree, test_chars)
   const char *index_name = "chars.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, CHARS, 8, ORDER, ORDER);
+  std::vector<AttrType> types;
+  types.push_back(CHARS);
+  std::vector<int> lens;
+  lens.push_back(8);
+  handler->create(index_name, types, lens, false, ORDER, ORDER);
 
   char keys[][9] = {
     "abcdefg",
@@ -515,7 +519,11 @@ TEST(test_bplus_tree, test_scanner)
   const char *index_name = "scanner.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+  std::vector<AttrType> types;
+  types.push_back(INTS);
+  std::vector<int> lens;
+  lens.push_back(sizeof(int));
+  handler->create(index_name, types, lens, false, ORDER, ORDER);
 
   int count = 0;
   RC rc = RC::SUCCESS;
@@ -724,7 +732,11 @@ TEST(test_bplus_tree, test_bplus_tree_insert)
 
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+  std::vector<AttrType> types;
+  types.push_back(INTS);
+  std::vector<int> lens;
+  lens.push_back(sizeof(int));
+  handler->create(index_name, types, lens, false, ORDER, ORDER);
 
   test_insert();
 

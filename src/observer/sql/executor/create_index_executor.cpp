@@ -34,7 +34,7 @@ RC CreateIndexExecutor::execute(SQLStageEvent *sql_event)
 
   if (create_index_stmt->is_multi_index()) {
     return table->create_index(
-        trx, create_index_stmt->field_metas()[0], create_index_stmt->index_name().c_str(), create_index_stmt->is_unique());
+        trx, create_index_stmt->field_metas(), create_index_stmt->index_name().c_str(), create_index_stmt->is_unique());
   } else {
     return table->create_index(trx, create_index_stmt->field_meta(), create_index_stmt->index_name().c_str(), create_index_stmt->is_unique());
   }

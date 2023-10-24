@@ -100,53 +100,75 @@ private:
 class KeyComparator 
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::vector<AttrType>& type, std::vector<int>& length)
   {
-    attr_comparator_.init(type, length);
+    for (int i = 0; i < type.size(); ++i) {
+      AttrComparator attr_comparator;
+      attr_comparator.init(type[i], length[i]);
+      attr_comparator_.push_back(attr_comparator);
+    }
   }
 
-  const AttrComparator &attr_comparator() const
+  const std::vector<AttrComparator> &attr_comparator() const
   {
     return attr_comparator_;
   }
 
   int operator()(const char *v1, const char *v2) const
   {
-    int result = attr_comparator_(v1, v2);
-    if (result != 0) {
-      return result;
+    int result = 0;
+    int offset = 0;
+    for (const auto& attr_comparator : attr_comparator_) {
+      result = attr_comparator(v1 + offset, v2 + offset);
+      if (result != 0) {
+        return result;
+      }
+      offset += attr_comparator.attr_length();
     }
 
-    const RID *rid1 = (const RID *)(v1 + attr_comparator_.attr_length());
-    const RID *rid2 = (const RID *)(v2 + attr_comparator_.attr_length());
+    const RID *rid1 = (const RID *)(v1 + offset);
+    const RID *rid2 = (const RID *)(v2 + offset);
     return RID::compare(rid1, rid2);
   }
 
 private:
-  AttrComparator attr_comparator_;
+  std::vector<AttrComparator> attr_comparator_;
 };
 
 class UniqueKeyComparator
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::vector<AttrType>& type, std::vector<int>& length)
   {
-    attr_comparator_.init(type, length);
+    for (int i = 0; i < type.size(); ++i) {
+      AttrComparator attr_comparator;
+      attr_comparator.init(type[i], length[i]);
+      attr_comparator_.push_back(attr_comparator);
+    }
   }
 
-  const AttrComparator &attr_comparator() const
+  const std::vector<AttrComparator> &attr_comparator() const
   {
     return attr_comparator_;
   }
 
   int operator()(const char *v1, const char *v2) const
   {
-    int result = attr_comparator_(v1, v2);
-    return result;
+    int result = 0;
+    int offset = 0;
+    for (const auto& attr_comparator : attr_comparator_) {
+      result = attr_comparator(v1 + offset, v2 + offset);
+      if (result != 0) {
+        return result;
+      }
+      offset += attr_comparator.attr_length();
+    }
+
+    return 0;
   }
 
 private:
-  AttrComparator attr_comparator_;
+  std::vector<AttrComparator> attr_comparator_;
 };
 
 /**
@@ -242,20 +264,21 @@ struct IndexFileHeader
     memset(this, 0, sizeof(IndexFileHeader));
     root_page = BP_INVALID_PAGE_NUM;
   }
-  PageNum root_page;          ///< 根节点在磁盘中的页号
-  int32_t internal_max_size;  ///< 内部节点最大的键值对数
-  int32_t leaf_max_size;      ///< 叶子节点最大的键值对数
-  int32_t attr_length;        ///< 键值的长度
-  int32_t key_length;         ///< attr length + sizeof(RID)
-  AttrType attr_type;         ///< 键值的类型
+  PageNum root_page;                      ///< 根节点在磁盘中的页号
+  int32_t internal_max_size;              ///< 内部节点最大的键值对数
+  int32_t leaf_max_size;                  ///< 叶子节点最大的键值对数
+  std::vector<int32_t> attr_length;       ///< 键值的长度
+  int32_t key_length;                     ///< attr length + sizeof(RID)
+  std::vector<AttrType> attr_type;       ///< 键值的类型
+  bool is_multi{false};                   ///< 是否是多字段索引
 
   const std::string to_string()
   {
     std::stringstream ss;
 
-    ss << "attr_length:" << attr_length << ","
+    ss << "attr_length:" << attr_length[0] << ","
        << "key_length:" << key_length << ","
-       << "attr_type:" << attr_type << ","
+       << "attr_type:" << attr_type[0] << ","
        << "root_page:" << root_page << ","
        << "internal_max_size:" << internal_max_size << ","
        << "leaf_max_size:" << leaf_max_size << ";";
@@ -491,9 +514,8 @@ public:
    * 此函数创建一个名为fileName的索引。
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
-  RC create(const char *file_name, 
-            AttrType attr_type, 
-            int attr_length, 
+  RC create(const char *file_name, std::vector<AttrType> &attr_type, std::vector<int> &attr_length,
+            bool is_mutli,
             int internal_max_size = -1, 
             int leaf_max_size = -1);
 
@@ -606,7 +628,7 @@ protected:
 
   KeyComparator   key_comparator_;
   UniqueKeyComparator unique_key_comparator_;
-  KeyPrinter      key_printer_;
+  std::vector<KeyPrinter>      key_printer_;
 
   std::unique_ptr<common::MemPoolItem> mem_pool_item_;
 

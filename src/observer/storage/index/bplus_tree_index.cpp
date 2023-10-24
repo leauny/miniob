@@ -32,7 +32,45 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, co
 
   Index::init(index_meta, field_meta);
 
-  RC rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+  std::vector<AttrType> types;
+  types.push_back(field_meta.type());
+  std::vector<int> lens;
+  lens.push_back(field_meta.len());
+  RC rc = index_handler_.create(file_name, types, lens, is_multi());
+  if (RC::SUCCESS != rc) {
+    LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
+        file_name,
+        index_meta.name(),
+        index_meta.field(),
+        strrc(rc));
+    return rc;
+  }
+
+  inited_ = true;
+  LOG_INFO(
+      "Successfully create index, file_name:%s, index:%s, field:%s", file_name, index_meta.name(), index_meta.field());
+  return RC::SUCCESS;
+}
+
+RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const std::vector<const FieldMeta *> &field_metas)
+{
+  if (inited_) {
+    LOG_WARN("Failed to create index due to the index has been created before. file_name:%s, index:%s, field:%s",
+        file_name,
+        index_meta.name(),
+        index_meta.field());
+    return RC::RECORD_OPENNED;
+  }
+
+  Index::init(index_meta, field_metas);
+
+  std::vector<AttrType> types;
+  std::vector<int> lens;
+  for (auto& field : field_metas) {
+    types.push_back(field->type());
+    lens.push_back(field->len());
+  }
+  RC rc = index_handler_.create(file_name, types, lens, is_multi());
   if (RC::SUCCESS != rc) {
     LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
         file_name,
@@ -76,6 +114,34 @@ RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, cons
   return RC::SUCCESS;
 }
 
+RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, const std::vector<const FieldMeta *> &field_metas)
+{
+  if (inited_) {
+    LOG_WARN("Failed to open index due to the index has been initedd before. file_name:%s, index:%s, field:%s",
+        file_name,
+        index_meta.name(),
+        index_meta.field());
+    return RC::RECORD_OPENNED;
+  }
+
+  Index::init(index_meta, field_metas);
+
+  RC rc = index_handler_.open(file_name);
+  if (RC::SUCCESS != rc) {
+    LOG_WARN("Failed to open index_handler, file_name:%s, index:%s, field:%s, rc:%s",
+        file_name,
+        index_meta.name(),
+        index_meta.field(),
+        strrc(rc));
+    return rc;
+  }
+
+  inited_ = true;
+  LOG_INFO(
+      "Successfully open index, file_name:%s, index:%s, field:%s", file_name, index_meta.name(), index_meta.field());
+  return RC::SUCCESS;
+}
+
 RC BplusTreeIndex::close()
 {
   if (inited_) {
@@ -89,18 +155,40 @@ RC BplusTreeIndex::close()
 
 RC BplusTreeIndex::insert_entry(const char *record, const RID *rid)
 {
-  if (is_unique()) {
-    return index_handler_.insert_entry(record + field_meta_.offset(), rid, true);
+  if (!is_multi()) {
+    if (is_unique()) {
+      return index_handler_.insert_entry(record + field_meta_.offset(), rid, true);
+    }
+    return index_handler_.insert_entry(record + field_meta_.offset(), rid, false);
+  } else {
+    std::string key_str;
+    for (const auto& field_meta : fields_metas_) {
+      key_str += std::string(record + field_meta.offset(), field_meta.len());
+    }
+    if (is_unique()) {
+      return index_handler_.insert_entry(key_str.c_str(), rid, true);
+    }
+    return index_handler_.insert_entry(key_str.c_str(), rid, false);
   }
-  return index_handler_.insert_entry(record + field_meta_.offset(), rid, false);
 }
 
 RC BplusTreeIndex::delete_entry(const char *record, const RID *rid)
 {
-  if (is_unique()) {
-    return index_handler_.delete_entry(record + field_meta_.offset(), rid, true);
+  if (!is_multi()) {
+    if (is_unique()) {
+      return index_handler_.delete_entry(record + field_meta_.offset(), rid, true);
+    }
+    return index_handler_.delete_entry(record + field_meta_.offset(), rid, false);
+  } else {
+    std::string key_str;
+    for (const auto& field_meta : fields_metas_) {
+      key_str += std::string(record + field_meta.offset(), field_meta.len());
+    }
+    if (is_unique()) {
+      return index_handler_.delete_entry(key_str.c_str(), rid, true);
+    }
+    return index_handler_.delete_entry(key_str.c_str(), rid, false);
   }
-  return index_handler_.delete_entry(record + field_meta_.offset(), rid, false);
 }
 
 IndexScanner *BplusTreeIndex::create_scanner(

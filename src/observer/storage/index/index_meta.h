@@ -51,6 +51,7 @@ public:
 
   void desc(std::ostream &os) const;
   IndexType type() const { return type_; }
+  bool is_multi() const { return fields_.size() > 1; }
 
 public:
   void to_json(Json::Value &json_value) const;
