@@ -80,6 +80,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   // TODO: 根据表的个数构建alias, 并且判断表名冲突
   bool has_attr  = false;
   bool has_agg = false;
+  bool useless = false;
   if (tables.size() == 1) {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
       rc = FieldExpr::build_field(select_sql.attributes[i], tables[0], has_attr, has_agg);
@@ -87,7 +88,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = FieldExpr::build_field(condition, tables[0], has_attr, has_agg);
+      rc = FieldExpr::build_field(condition, tables[0], useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
 
@@ -98,7 +99,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = FieldExpr::build_field(condition, db, has_attr, has_agg);
+      rc = FieldExpr::build_field(condition, db, useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
   }
