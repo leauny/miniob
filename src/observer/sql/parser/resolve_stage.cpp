@@ -52,7 +52,7 @@ RC ResolveStage::handle_request(SQLStageEvent *sql_event)
     return rc;
   }
 
-  sql_event->set_stmt(stmt);
+  sql_event->set_stmt(std::move(stmt));
 
   return rc;
 }

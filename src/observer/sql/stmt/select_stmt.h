@@ -49,7 +49,7 @@ public:
   {
     return tables_;
   }
-  const std::vector<Expression*> &query_exprs() const
+  std::vector<std::unique_ptr<Expression>> &query_exprs()
   {
     return query_exprs_;
   }
@@ -57,9 +57,11 @@ public:
   {
     return filter_stmt_;
   }
+  bool get_agg() { return has_agg_; }
 
 private:
-  std::vector<Expression*> query_exprs_;
+  std::vector<std::unique_ptr<Expression>> query_exprs_;
   std::vector<Table *> tables_;
+  bool has_agg_;
   FilterStmt *filter_stmt_ = nullptr;
 };

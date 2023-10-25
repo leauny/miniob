@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/07/05.
 //
 
+#include <cmath>
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
@@ -21,12 +22,12 @@ class PhysicalOperator;
 
 using namespace std;
 
-RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
+RC FieldExpr::get_value(const Tuple &tuple, Value &value)
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
 
-RC FieldExpr::build_field(Expression *expr, Table *table) {
+RC FieldExpr::build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg) {
   RC rc = RC::SUCCESS;
   if (!expr) {
     LOG_WARN("Expr is null.");
@@ -34,34 +35,39 @@ RC FieldExpr::build_field(Expression *expr, Table *table) {
   }
   switch (expr->type()) {
     case ExprType::FIELD: {
-      rc = create_field_expr(expr, table);
+      rc = create_field_expr(expr, table, has_attr, has_agg, false);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::COMPARISON: {
       auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
-      rc = build_field(comparison_expr->left().get(), table);
+      rc = build_field(comparison_expr->left().get(), table, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(comparison_expr->right().get(), table);
+      rc = build_field(comparison_expr->right().get(), table, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::CONJUNCTION: {
       for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
-        rc = build_field(expression.get(), table);
+        rc = build_field(expression.get(), table, has_attr, has_agg);
         if(OB_FAIL(rc)) { return rc; };
       }
     } break;
     case ExprType::CAST: {
       auto cast_expr = dynamic_cast<CastExpr*>(expr);
-      rc = build_field(cast_expr->child().get(), table);
+      rc = build_field(cast_expr->child().get(), table, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     } break;
     case ExprType::ARITHMETIC: {
       auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
-      rc = build_field(arithmetic_expr->left().get(), table);
+      rc = build_field(arithmetic_expr->left().get(), table, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(arithmetic_expr->right().get(), table);
+      rc = build_field(arithmetic_expr->right().get(), table, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
+    case ExprType::FUNC: {
+      auto func_expr = dynamic_cast<FuncExpr*>(expr);
+      rc = build_field(func_expr->child().get(), table, has_attr, has_agg);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
     default:
       LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
   }
@@ -69,55 +75,64 @@ RC FieldExpr::build_field(Expression *expr, Table *table) {
 }
 
 // multi-table
-RC FieldExpr::build_field(Expression *expr, Db* db) {
+RC FieldExpr::build_field(Expression *expr, Db* db, bool &has_attr, bool &has_agg) {
   RC rc = RC::SUCCESS;
   switch (expr->type()) {
     case ExprType::FIELD: {
       auto field_expr = dynamic_cast<FieldExpr*>(expr);
       auto table = db->find_table(field_expr->get_node().relation_name.c_str());
-      rc = create_field_expr(expr, table);
+      if (!table) {
+        LOG_ERROR("No table name in attribute %s.", field_expr->get_node().relation_name.c_str());
+        return RC::INTERNAL;
+      }
+      rc = create_field_expr(expr, table, has_attr, has_agg, true);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::COMPARISON: {
       auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
-      rc = build_field(comparison_expr->left().get(), db);
+      rc = build_field(comparison_expr->left().get(), db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(comparison_expr->right().get(), db);
+      rc = build_field(comparison_expr->right().get(), db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::CONJUNCTION: {
       for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
-        rc = build_field(expression.get(), db);
+        rc = build_field(expression.get(), db, has_attr, has_agg);
         if(OB_FAIL(rc)) { return rc; };
       }
     } break;
     case ExprType::CAST: {
       auto cast_expr = dynamic_cast<CastExpr*>(expr);
-      rc = build_field(cast_expr->child().get(), db);
+      rc = build_field(cast_expr->child().get(), db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     } break;
     case ExprType::ARITHMETIC: {
       auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
-      rc = build_field(arithmetic_expr->left().get(), db);
+      rc = build_field(arithmetic_expr->left().get(), db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(arithmetic_expr->right().get(), db);
+      rc = build_field(arithmetic_expr->right().get(), db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
+    case ExprType::FUNC: {
+      auto func_expr = dynamic_cast<FuncExpr*>(expr);
+      rc = build_field(func_expr->child().get(), db, has_attr, has_agg);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
     default:
       LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
   }
   return rc;
 }
 
-RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
+RC FieldExpr::create_field_expr(Expression *expr, Table *table, bool &has_attr, bool &has_agg, bool multi_table)
+{
   auto field_expr = dynamic_cast<FieldExpr*>(expr);
   if (field_expr == nullptr) {
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
   auto attr_node = field_expr->get_node();
   auto attribute_name = attr_node.attribute_name.c_str();
-  auto alias = attr_node.alias.c_str();
-  auto parm = attr_node.func_parm;
+  auto alias = attr_node.alias;
   auto type = attr_node.func_type;
   auto field_meta = table->table_meta().field(attribute_name);
   if (type == FUNC_WCOUNT) {
@@ -131,25 +146,35 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table) {
   field_expr->set_name(attribute_name);
   field_expr->set_alias(alias);
   field_expr->set_field(field);
-  field_expr->field().set_func_type(type);
-  field_expr->field().set_func_parm(parm);
+  if (multi_table && field_expr->alias().empty()) {
+    // 如果多表情况下没有别名，则设置alias
+    field_expr->set_alias(std::string(table->name()) + "." + std::string(attribute_name));
+  } else {
+    if (!alias.empty()) {
+      LOG_WARN("RelAttrSqlNode and expr both have alias.");
+    }
+  }
+  if (type > FUNC_NONE && type < FUNC_AGG_END) {
+    has_agg = true;
+  } else {
+    has_attr = true;
+  }
+  if ((type == FUNC_LENGTH && field.meta()->type() != CHARS) ||
+      (type == FUNC_ROUND && field.meta()->type() != FLOATS) ||
+      (type == FUNC_DATE_FORMAT && field.meta()->type() != DATES)) {
+    return RC::SCHEMA_WRONG_FUNC;
+  }
+
   return RC::SUCCESS;
 }
 
-
-RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
+RC ValueExpr::get_value(const Tuple &tuple, Value &value)
 {
   value = value_;
   return RC::SUCCESS;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-CastExpr::CastExpr(unique_ptr<Expression> child, AttrType cast_type)
-    : child_(std::move(child)), cast_type_(cast_type)
-{}
-
-CastExpr::~CastExpr()
-{}
 
 RC CastExpr::cast(const Value &value, Value &cast_value) const
 {
@@ -172,7 +197,7 @@ RC CastExpr::cast(const Value &value, Value &cast_value) const
   return rc;
 }
 
-RC CastExpr::get_value(const Tuple &tuple, Value &cell) const
+RC CastExpr::get_value(const Tuple &tuple, Value &cell)
 {
   RC rc = child_->get_value(tuple, cell);
   if (rc != RC::SUCCESS) {
@@ -182,7 +207,7 @@ RC CastExpr::get_value(const Tuple &tuple, Value &cell) const
   return cast(cell, cell);
 }
 
-RC CastExpr::try_get_value(Value &value) const
+RC CastExpr::try_get_value(Value &value)
 {
   RC rc = child_->try_get_value(value);
   if (rc != RC::SUCCESS) {
@@ -193,13 +218,6 @@ RC CastExpr::try_get_value(Value &value) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_ptr<Expression> right)
-    : comp_(comp), left_(std::move(left)), right_(std::move(right))
-{}
-
-ComparisonExpr::~ComparisonExpr()
-{}
 
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
@@ -250,7 +268,7 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   return rc;
 }
 
-RC ComparisonExpr::try_get_value(Value &cell) const
+RC ComparisonExpr::try_get_value(Value &cell)
 {
   if (left_->type() == ExprType::VALUE && right_->type() == ExprType::VALUE) {
     ValueExpr *left_value_expr = static_cast<ValueExpr *>(left_.get());
@@ -271,7 +289,7 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
-RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
+RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
 {
   Value left_value;
   Value right_value;
@@ -286,13 +304,6 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
     return rc;
   }
-
-  // TODO: type cast
-  if (left_value.attr_type() != right_value.attr_type()) {
-    // TODO: 搞一个类型转换匹配map, 用于匹配类型转换
-
-  }
-
 
   bool bool_value = false;
   rc = compare_value(left_value, right_value, bool_value);
@@ -313,11 +324,7 @@ ConjunctionExpr::ConjunctionExpr(
     : conjunction_type_(type), left_(std::move(left)), right_(std::move(right)) {}
 */
 
-ConjunctionExpr::ConjunctionExpr(Type type, vector<unique_ptr<Expression>> &children)
-    : conjunction_type_(type), children_(std::move(children))
-{}
-
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
+RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -346,14 +353,6 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, Expression *left, Expression *right)
-    : arithmetic_type_(type), left_(left), right_(right)
-{}
-
-ArithmeticExpr::ArithmeticExpr(ArithmeticExpr::Type type, unique_ptr<Expression> left, unique_ptr<Expression> right)
-    : arithmetic_type_(type), left_(std::move(left)), right_(std::move(right))
-{}
-
 AttrType ArithmeticExpr::value_type() const
 {
   if (!right_) {
@@ -374,6 +373,12 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   RC rc = RC::SUCCESS;
 
   const AttrType target_type = value_type();
+
+  // null计算始终为null
+  if (left_value.attr_type() == NULLS || right_value.attr_type() == NULLS) {
+    value.set_null();
+    return rc;
+  }
 
   switch (arithmetic_type_) {
     case Type::ADD: {
@@ -403,15 +408,13 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
     case Type::DIV: {
       if (target_type == AttrType::INTS) {
         if (right_value.get_int() == 0) {
-          // NOTE: 设置为整数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为整数最大值。
-          value.set_int(numeric_limits<int>::max());
+          value.set_null();
         } else {
           value.set_int(left_value.get_int() / right_value.get_int());
         }
       } else {
         if (right_value.get_float() > -EPSILON && right_value.get_float() < EPSILON) {
-          // NOTE: 设置为浮点数最大值是不正确的。通常的做法是设置为NULL，但是当前的miniob没有NULL概念，所以这里设置为浮点数最大值。
-          value.set_float(numeric_limits<float>::max());
+          value.set_null();
         } else {
           value.set_float(left_value.get_float() / right_value.get_float());
         }
@@ -434,7 +437,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   return rc;
 }
 
-RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
+RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
 
@@ -462,7 +465,7 @@ RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value) const
   return calc_value(left_value, right_value, value);
 }
 
-RC ArithmeticExpr::try_get_value(Value &value) const
+RC ArithmeticExpr::try_get_value(Value &value)
 {
   RC rc = RC::SUCCESS;
 
@@ -486,7 +489,7 @@ RC ArithmeticExpr::try_get_value(Value &value) const
   return calc_value(left_value, right_value, value);
 }
 
-RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const
+RC SubQueryExpr::get_value(const Tuple &tuple, Value &value)
 {
   operator_->open(trx_);
   std::vector<Tuple *> subquery_result;
@@ -510,4 +513,137 @@ RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const
     t->cell_at(0, value);
     return RC::SUCCESS;
   }
+}
+
+RC FuncExpr::get_value(const Tuple &tuple, Value &value) {
+  RC rc = RC::SUCCESS;
+
+  if (!child_) {
+    return RC::EXPRESSION_INVALID;
+  } else {
+    rc = child_->get_value(tuple, value);
+    if (!OB_SUCC(rc)) { return rc; }
+    if (value.attr_type() != NULLS) {
+      count_++;
+    }
+    w_count_++;
+  }
+
+  switch (type_) {
+    case FUNC_MIN: {
+      // 初始化值
+      if (min_.attr_type() == UNDEFINED) {
+        min_.set_type(value.attr_type());
+        min_.set_value(value);
+        break;
+      }
+
+      if (value.attr_type() == NULLS) {
+        break;
+      }
+
+      if (min_.attr_type() == NULLS) {
+        min_.set_value(value);
+      }
+
+      if (value.compare(min_) < 0) {
+        min_.set_value(value);
+      }
+      value = min_;
+    } break;
+    case FUNC_MAX: {
+      // 初始化值
+      if (max_.attr_type() == UNDEFINED) {
+        max_.set_type(value.attr_type());
+        max_.set_value(value);
+        break;
+      }
+
+      if (value.attr_type() == NULLS) {
+        break;
+      }
+
+      if (max_.attr_type() == NULLS) {
+        max_.set_value(value);
+      }
+
+      if (value.compare(max_) > 0) {
+        max_.set_value(value);
+      }
+      value = max_;
+    } break;
+    case FUNC_AVG:
+    case FUNC_SUM: {
+      // 不支持boolean
+      if (value.attr_type() == NULLS) {
+        if (sum_.attr_type() == UNDEFINED) {
+          sum_.set_type(value.attr_type());
+          sum_.set_value(value);
+        }
+        break;
+      }
+      if (sum_.attr_type() == UNDEFINED) {
+        sum_.set_type(value.attr_type());
+        if (value.attr_type() == INTS) { sum_.set_int(value.get_int()); }
+        else if (value.attr_type() == FLOATS) { sum_.set_float(value.get_float()); }
+        else if (value.attr_type() == CHARS) {
+          // 隐式转换，直接取float
+          sum_.set_type(FLOATS);
+          sum_.set_float(value.get_float());
+        }
+        else { return RC::INTERNAL; }
+      } else {
+        if (value.attr_type() == INTS) { sum_.set_int(sum_.get_int() + value.get_int()); }
+        else if (value.attr_type() == FLOATS) { sum_.set_float(sum_.get_float() + value.get_float()); }
+        else if (value.attr_type() == CHARS) { sum_.set_float(sum_.get_float() + value.get_float()); }
+        else { return RC::INTERNAL; }
+      }
+      value = sum_;
+    } break;
+    case FUNC_COUNT: {
+      value.set_int(count_);
+    } break;
+    case FUNC_WCOUNT: {
+      value.set_int(w_count_);
+    } break;
+    case FUNC_LENGTH: {
+      if (value.attr_type() != CHARS) {
+        LOG_ERROR("length only support chars.");
+        return RC::INTERNAL;
+      }
+      value.set_int(value.get_string().size());
+    } break;
+    case FUNC_ROUND: {
+      value.set_float(std::round(value.get_float() * pow(10, std::stoi(parm_))) / pow(10, std::stoi(parm_)));
+    } break;
+    case FUNC_DATE_FORMAT: {
+      value.set_date(value.get_date(), parm_);
+      auto str = value.to_string();
+      value.set_type(CHARS);
+      value.set_data(str.c_str(), str.size());
+    } break;
+    default:
+      LOG_ERROR("Wrong functino type %d.", type_);
+      return RC::INTERNAL;
+  }
+
+  if (type_ != FUNC_AVG) { return rc; }
+
+  // 计算avg
+  switch (sum_.attr_type()) {
+    case FLOATS: {
+      value.set_float(sum_.get_float() / (float)count_);
+    } break;
+    case INTS: {
+      value.set_float(sum_.get_int() / (float)count_);
+    } break;
+    case NULLS: {
+      // do nothing
+    } break;
+    default: {
+      return RC::INTERNAL;
+    }
+  }
+
+  return RC::SUCCESS;
 }

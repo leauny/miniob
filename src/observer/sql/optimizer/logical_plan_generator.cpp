@@ -112,24 +112,70 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, std::unique_ptr<Lo
   return rc;
 }
 
+RC get_fields(std::vector<Field> &fields, const std::string &table_name, const std::unique_ptr<Expression> &expr) {
+  RC rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      const auto e = dynamic_cast<FieldExpr*>(expr.get());
+      if (0 == strcmp(e->table_name(), table_name.c_str())) {
+        fields.push_back(e->field());  // 按照表来遍历，找到属与当前表中的field
+      }
+    } break;
+    case ExprType::CAST: {
+      const auto e = dynamic_cast<CastExpr*>(expr.get());
+      rc = get_fields(fields, table_name, e->child());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::COMPARISON: {
+      const auto e = dynamic_cast<ComparisonExpr*>(expr.get());
+      rc = get_fields(fields, table_name, e->left());
+      if (OB_SUCC(rc)) { return rc; }
+      rc = get_fields(fields, table_name, e->right());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::CONJUNCTION: {
+      const auto e = dynamic_cast<ConjunctionExpr*>(expr.get());
+      for (auto &child : e->children()) {
+        rc = get_fields(fields, table_name, child);
+        if (OB_SUCC(rc)) { return rc; }
+      }
+    } break;
+    case ExprType::ARITHMETIC: {
+      const auto e = dynamic_cast<ArithmeticExpr*>(expr.get());
+      rc = get_fields(fields, table_name, e->left());
+      if (OB_SUCC(rc)) { return rc; }
+      rc = get_fields(fields, table_name, e->right());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::FUNC: {
+      const auto e = dynamic_cast<FuncExpr*>(expr.get());
+      rc = get_fields(fields, table_name, e->child());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::VALUE: break;
+    case ExprType::NONE: break;
+    case ExprType::STAR: break;
+    case ExprType::SUBQUERY:
+    case ExprType::LIST:
+    case ExprType::REL_ATTR:
+    case ExprType::TABLE: {
+      return RC::UNIMPLENMENT;
+    } break;
+  }
+  return rc;
+}
+
 RC LogicalPlanGenerator::create_plan(
     SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables = select_stmt->tables();
-  const std::vector<Expression*> &all_exprs = select_stmt->query_exprs();
+  vector<unique_ptr<Expression>> &all_exprs = select_stmt->query_exprs();
   for (Table *table : tables) {
     std::vector<Field> fields;
     for (const auto &expr : all_exprs) {
-      // TODO: 支持ArithmeticExpression
-      if (expr->type() != ExprType::FIELD) {
-        continue;
-      }
-      auto field_expr = dynamic_cast<FieldExpr*>(expr);
-      if (0 == strcmp(field_expr->field().table_name(), table->name())) {
-        fields.push_back(field_expr->field());  // 按照表来遍历，找到属与当前表中的field
-      }
+      get_fields(fields, table->name(), expr);
     }
 
     // 根据找到的field来创建table get operator
@@ -154,7 +200,8 @@ RC LogicalPlanGenerator::create_plan(
   }
 
   // 创建project operator
-  unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_exprs));
+  unique_ptr<LogicalOperator> project_oper = make_unique<ProjectLogicalOperator>(select_stmt->get_agg());
+  project_oper->set_expressions(all_exprs);  // 将查询内容移动到physical_oper
   if (predicate_oper) {
     if (table_oper) {
       predicate_oper->add_child(std::move(table_oper));

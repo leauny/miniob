@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 class ProjectLogicalOperator : public LogicalOperator 
 {
 public:
-  ProjectLogicalOperator(const std::vector<Expression*> &fields);
+  ProjectLogicalOperator(bool has_agg) : has_agg_(has_agg) {}
   virtual ~ProjectLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -37,20 +37,14 @@ public:
     return LogicalOperatorType::PROJECTION;
   }
 
-  std::vector<Expression*> &expressions()
-  {
-    return expressions_;
-  }
-
-  const std::vector<Expression*> &expressions() const
-  {
-    return expressions_;
-  }
+  bool get_agg() { return has_agg_; }
+  bool set_agg(bool has_agg) { return has_agg_; }
 
 private:
-  //! 投影映射的字段名称
+  //! 投影映射的字段名称 (使用基类的expressions_)
   //! 并不是所有的select都会查看表字段，也可能是常量数字、字符串，
   //! 或者是执行某个函数。所以这里应该是表达式Expression。
   //! 不过现在简单处理，就使用字段来描述
-  std::vector<Expression*> expressions_;
+  // std::vector<std::unique_ptr<Expression>> expressions_;
+  bool has_agg_;
 };

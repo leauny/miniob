@@ -178,9 +178,9 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   return rc;
 }
 
-RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, unique_ptr<PhysicalOperator> &oper)
+RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &logic_oper, unique_ptr<PhysicalOperator> &oper)
 {
-  vector<unique_ptr<LogicalOperator>> &child_opers = project_oper.children();
+  vector<unique_ptr<LogicalOperator>> &child_opers = logic_oper.children();
 
   unique_ptr<PhysicalOperator> child_phy_oper;
 
@@ -194,23 +194,15 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
     }
   }
 
-  ProjectPhysicalOperator *project_operator = new ProjectPhysicalOperator;
-  auto &project_exprs = project_oper.expressions();
-  for (const auto &expr : project_exprs) {
-    auto field_expr = dynamic_cast<FieldExpr *>(expr);
-    project_operator->add_projection(
-        field_expr->field().table(),
-        field_expr->field().meta(),
-        expr->alias(),
-        field_expr->field().func_type(),
-        field_expr->field().func_parm());
-  }
+  ProjectPhysicalOperator *phy_oper = new ProjectPhysicalOperator(std::move(logic_oper.expressions()));
+
+  phy_oper->set_agg(logic_oper.get_agg());
 
   if (child_phy_oper) {
-    project_operator->add_child(std::move(child_phy_oper));
+    phy_oper->add_child(std::move(child_phy_oper));
   }
 
-  oper = unique_ptr<PhysicalOperator>(project_operator);
+  oper.reset(phy_oper);
 
   LOG_TRACE("create a project physical operator");
   return rc;

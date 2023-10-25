@@ -28,12 +28,18 @@ SelectStmt::~SelectStmt()
   }
 }
 
-static void wildcard_fields(Table *table, std::vector<Expression*> &field_expressions)
+static void wildcard_fields(Table *table, std::vector<std::unique_ptr<Expression>> &field_expressions, bool multi_table)
 {
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
   for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_expressions.emplace_back(new FieldExpr(table, table_meta.field(i)));
+    std::string name = table_meta.field(i)->name();
+    if (multi_table) {
+      name = std::string(table_meta.name()) + "." + name;
+    }
+    field_expressions.emplace_back(
+        new FieldExpr(table, table_meta.field(i), name)
+    );
   }
 }
 
@@ -71,67 +77,55 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   }
 
   // 构建FieldExpr
+  // TODO: 根据表的个数构建alias, 并且判断表名冲突
+  bool has_attr  = false;
+  bool has_agg = false;
   if (tables.size() == 1) {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      rc = FieldExpr::build_field(select_sql.attributes[i], tables[0]);
+      rc = FieldExpr::build_field(select_sql.attributes[i], tables[0], has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = FieldExpr::build_field(condition, tables[0]);
+      rc = FieldExpr::build_field(condition, tables[0], has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }
 
   } else {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      rc = FieldExpr::build_field(select_sql.attributes[i], db);
+      rc = FieldExpr::build_field(select_sql.attributes[i], db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = FieldExpr::build_field(condition, db);
+      rc = FieldExpr::build_field(condition, db, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }
   }
   // collect query fields in `select` statement
-  std::vector<Expression*> query_expressions;
-  bool has_aggregation = false;
-  bool has_attributes = false;
+  std::vector<std::unique_ptr<Expression>> query_expressions;
   // 倒序处理是因为yacc_sql.y中select语句的attributes是尾插的
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     Expression* relation_attr = select_sql.attributes[i];
 
-    // TODO: 判断relation_attr的类型后处理
     switch (relation_attr->type()) {
-      case ExprType::FIELD: {
-        auto expr = dynamic_cast<FieldExpr*>(relation_attr);
-        auto type = expr->field().func_type();
-        if (type > FUNC_NONE && type < FUNC_AGG_END) {
-          has_aggregation = true;
-        } else {
-          has_attributes = true;
-        }
-
-        // function只支持指定类型
-        if ((type == FUNC_LENGTH && expr->field().meta()->type() != CHARS) ||
-            (type == FUNC_ROUND && expr->field().meta()->type() != FLOATS) ||
-            (type == FUNC_DATE_FORMAT && expr->field().meta()->type() != DATES)) {
-          return RC::SCHEMA_WRONG_FUNC;
-        }
-        query_expressions.emplace_back(relation_attr);
-      } break;
       case ExprType::STAR: {
-        has_attributes = true;
+        has_attr = true;
         for (Table *table : tables) {
-          wildcard_fields(table, query_expressions);
+          wildcard_fields(table, query_expressions, tables.size() != 1);
         }
+      } break;
+      case ExprType::FIELD:
+      case ExprType::FUNC:
+      case ExprType::ARITHMETIC: {
+        query_expressions.emplace_back(relation_attr);
       } break;
       default:
         sql_debug("Got error relation attribute: %d", relation_attr->type());
         return RC::INTERNAL;
     }
 
-    if (has_aggregation && has_attributes) { return RC::SCHEMA_MIXED_QUERY; }
+    if (has_attr && has_agg) { return RC::SCHEMA_MIXED_QUERY; }
   }
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_expressions.size());
@@ -159,6 +153,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->has_agg_ = has_agg;
   stmt = select_stmt;
   return RC::SUCCESS;
 }

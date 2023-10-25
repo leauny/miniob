@@ -160,6 +160,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value_list>          record
 %type <number>              number
 %type <comp>                comp_op
+%type <string>              alias
 %type <rel_attr>            rel_attr
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
@@ -168,9 +169,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <field_list>          id_list
 %type <expression_list>     where
 %type <expression_list>     condition_list
-%type <expression_list>     select_attr
-%type <expression_list>     rel_list
 %type <expression_list>     attr_list
+%type <expression_list>     rel_list
 %type <update_list>         update_list
 %type <expression>          rel_expr
 %type <expression>          expression
@@ -344,6 +344,15 @@ id_list:
     }
     ;
 
+alias:
+  ID {
+    $$ = common::substr($1,0,strlen($1));
+  }
+  | AS ID {
+    $$ = common::substr($2,0,strlen($2));
+  }
+  ;
+
 drop_index_stmt:      /*drop index 语句的语法解析树*/
     DROP INDEX ID ON ID
     {
@@ -504,6 +513,7 @@ value:
       char *tmp = common::substr($1,1,strlen($1)-2);
       $$ = new Value(tmp);
       free(tmp);
+      @$ = @1;
     }
     |DATE {
       if (!($1).ok()) {
@@ -526,6 +536,7 @@ value:
         }
         $$ = new Value((int)$3->get_string().size());  // translate into int
         free($3);
+        @$ = @1;
     }
     | ROUND LBRACE value COMMA number RBRACE
     {
@@ -535,6 +546,7 @@ value:
         }
         $$ = new Value((float)(std::round($3->get_float() * pow(10, $5)) / pow(10, $5)));
         free($3);
+        @$ = @1;
     }
     | DATE_FORMAT LBRACE value COMMA SSS RBRACE
     {
@@ -544,6 +556,7 @@ value:
         }
         $$ = new Value((date)$3->get_date(), common::substr($5,1,strlen($5)-2));
         free($3);
+        @$ = @1;
     }
     ;
 
@@ -613,15 +626,15 @@ subquery:
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+    SELECT attr_list FROM ID rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.attributes = std::move(*$2);
         delete $2;
       }
       if ($5 != nullptr) {
-        $$->selection.relations.swap(*$5);
+        $$->selection.relations = std::move(*$5);
         delete $5;
       }
       $$->selection.relations.push_back(new TableExpr($4));
@@ -629,14 +642,14 @@ select_stmt:        /*  select 语句的语法解析树*/
       free($4);
 
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
+        $$->selection.conditions = std::move(*$6);
       }
     }
-    | SELECT select_attr FROM ID ID rel_list where
+    | SELECT attr_list FROM ID alias rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.attributes = std::move(*$2);
         delete $2;
       }
       if ($6 != nullptr) {
@@ -649,35 +662,14 @@ select_stmt:        /*  select 语句的语法解析树*/
       free($5);
 
       if ($7 != nullptr) {
-        $$->selection.conditions.swap(*$7);
+        $$->selection.conditions = std::move(*$7);
       }
     }
-    | SELECT select_attr FROM ID AS ID rel_list where
+    | SELECT attr_list FROM ID join_stmt where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
-        delete $2;
-      }
-      if ($7 != nullptr) {
-        $$->selection.relations.swap(*$7);
-        delete $7;
-      }
-      $$->selection.relations.push_back(new TableExpr($4, $6));
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      free($4);
-      free($6);
-
-      if ($8 != nullptr) {
-        $$->selection.conditions.swap(*$8);
-        delete $8;
-      }
-    }
-    | SELECT select_attr FROM ID join_stmt where
-    {
-      $$ = new ParsedSqlNode(SCF_SELECT);
-      if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
+        $$->selection.attributes = std::move(*$2);
         delete $2;
       }
       if ($6 != nullptr) {
@@ -697,28 +689,72 @@ select_stmt:        /*  select 语句的语法解析树*/
       free($4);
     }
     ;
-select_attr:
-    '*' attr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
-      } else {
-        $$ = new std::vector<Expression*>;
-      }
-      $$->emplace_back(new StarExpr());
+attr_list:
+    '*' {
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back(new StarExpr("*"));
     }
-    | rel_attr attr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
+    | expression {
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+    }
+    | expression alias {
+      $1->set_alias($2);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+      free($2);
+    }
+    | rel_expr {
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+    }
+    | rel_expr alias {
+      $1->set_alias($2);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+      free($2);
+    }
+    | '*' COMMA attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
       } else {
         $$ = new std::vector<Expression*>;
       }
-      if (0 == strcmp($1->attribute_name.c_str(), "*") && $1->func_type != FUNC_WCOUNT) {
-        $$->emplace_back(new StarExpr());
+      $$->emplace_back(new StarExpr("*"));
+    }
+    | expression COMMA attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
       } else {
-        FieldExpr* field = new FieldExpr(*$1);
-        $$->emplace_back(field);
+        $$ = new std::vector<Expression*>;
       }
-      delete $1;
+      $$->emplace_back($1);
+    }
+    | expression alias COMMA attr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      $1->set_alias($2);
+      $$->emplace_back($1);
+    }
+    | rel_expr COMMA attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      $$->emplace_back($1);
+    }
+    | rel_expr alias COMMA attr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      $1->set_alias($2);
+      $$->emplace_back($1);
     }
     ;
 
@@ -727,40 +763,7 @@ rel_attr:
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
       free($1);
-    }
-    | ID ID {
-        $$ = new RelAttrSqlNode;
-        $$->attribute_name = $1;
-        $$->alias = $2;
-        free($1);
-        free($2);
-        LOG_DEBUG("alias: %s", $$->alias.c_str());
-    }
-    | ID AS ID {
-        $$ = new RelAttrSqlNode;
-        $$->attribute_name = $1;
-        $$->alias = $3;
-        free($1);
-        free($3);
-        LOG_DEBUG("alias: %s", $$->alias.c_str());
-    }
-    | ID DOT ID AS ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = $1;
-      $$->attribute_name = $3;
-      $$->alias = $5;
-      free($1);
-      free($3);
-      free($5);
-    }
-    | ID DOT ID ID {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name  = $1;
-      $$->attribute_name = $3;
-      $$->alias = $4;
-      free($1);
-      free($3);
-      free($4);
+      @$ = @1;
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
@@ -768,6 +771,7 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
+      @$ = @1;
     }
     | AGG LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
@@ -778,41 +782,30 @@ rel_attr:
         return -1;
       }
       $$->func_type = FUNC_WCOUNT;  // 通配符版本的count
+      @$ = @1;
     }
     | AGG LBRACE rel_attr RBRACE {
       $$ = $3;
       $$->func_type = $1;
+      @$ = @1;
     }
     | LENGTH LBRACE rel_attr RBRACE {
       $$ = $3;
       $$->func_type = FUNC_LENGTH;
+      @$ = @1;
     }
     | ROUND LBRACE rel_attr COMMA number RBRACE {
       $$ = $3;
       $$->func_type = FUNC_ROUND;
       $$->func_parm = std::to_string($5);
+      @$ = @1;
     }
     | DATE_FORMAT LBRACE rel_attr COMMA SSS RBRACE {
       $$ = $3;
       $$->func_type = FUNC_DATE_FORMAT;
       $$->func_parm = common::substr($5,1,strlen($5)-2);
       free($5);
-    }
-    ;
-
-attr_list:
-    /* empty */
-    {
-      $$ = nullptr;
-    }
-    | COMMA rel_attr attr_list {
-      if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<Expression*>;
-      }
-      $$->emplace_back(new FieldExpr(*$2));
-      delete $2;
+      @$ = @1;
     }
     ;
 
@@ -831,7 +824,7 @@ rel_list:
       $$->emplace_back(new TableExpr($2));
       free($2);
     }
-    | COMMA ID ID rel_list {
+    | COMMA ID alias rel_list {
       if ($4 != nullptr) {
         $$ = $4;
       } else {
@@ -841,17 +834,6 @@ rel_list:
       $$->emplace_back(new TableExpr($2, $3));
       free($2);
       free($3);
-    }
-    | COMMA ID AS ID rel_list {
-      if ($5 != nullptr) {
-        $$ = $5;
-      } else {
-        $$ = new std::vector<Expression*>();
-      }
-
-      $$->emplace_back(new TableExpr($2, $4));
-      free($2);
-      free($4);
     }
     ;
 where:
@@ -948,84 +930,98 @@ rel_expr:
     LBRACE rel_expr RBRACE
     {
       $$ = $2;
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '+' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '-' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '*' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '/' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | '-' rel_expr %prec UMINUS {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::make_unique<ValueExpr>(Value(0)),
         std::unique_ptr<Expression>($2)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '+' expression {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '-' expression {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '*' expression {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | rel_expr '/' expression {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | expression '+' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | expression '-' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | expression '*' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::MUL,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | expression '/' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::DIV,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>($3)
       );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
     | MIX_SUB {
       // "col -5" situation
@@ -1046,10 +1042,43 @@ rel_expr:
           std::make_unique<ValueExpr>(Value(std::stoi(str.substr(pos + 1).c_str())))
         );
       }
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
       free($1);
     }
     | rel_attr {
-      $$ = new FieldExpr(*$1);
+      if (0 == strcmp($1->attribute_name.c_str(), "*") && $1->func_type != FUNC_WCOUNT) {
+        $$ = new StarExpr();
+      } else {
+        auto name = $1->attribute_name;
+        auto alias = $1->alias;
+        auto parm = $1->func_parm;
+        auto type = $1->func_type;
+        auto field_expr = new FieldExpr(*$1);
+        if (type != FUNC_NONE) {
+          auto func_expr = new FuncExpr(field_expr);
+          func_expr->set_parm(parm);
+          func_expr->set_type(type);
+
+          if (type != FUNC_NONE) {
+              std::string ans{};
+              switch (type) {
+                case FUNC_MIN: ans += "min("; break;
+                case FUNC_MAX: ans += "max("; break;
+                case FUNC_AVG: ans += "avg("; break;
+                case FUNC_SUM: ans += "sum("; break;
+                case FUNC_COUNT:
+                case FUNC_WCOUNT: ans += "count("; break;
+                default:
+                  LOG_WARN("Wrong func type.");
+              }
+              ans += name + ')';
+              func_expr->set_name(ans);
+          }
+          $$ = func_expr;
+        } else {
+          $$ = field_expr;
+        }
+      }
       free($1);
     }
     ;
@@ -1097,6 +1126,12 @@ calc_stmt:
       $$->calc.expressions.swap(*$2);
       delete $2;
     }
+    | SELECT expression_list {             //  select 1+1;
+      $$ = new ParsedSqlNode(SCF_CALC);    // 注意这是CALC
+      std::reverse($2->begin(), $2->end());
+      $$->calc.expressions.swap(*$2);
+      delete $2;
+    }
     ;
 
 expression_list:
@@ -1104,6 +1139,13 @@ expression_list:
     {
       $$ = new std::vector<Expression*>;
       $$->emplace_back($1);
+    }
+    | expression alias
+    {
+      $1->set_alias($2);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back($1);
+      free($2);
     }
     | expression COMMA expression_list
     {
@@ -1113,6 +1155,17 @@ expression_list:
         $$ = new std::vector<Expression *>;
       }
       $$->emplace_back($1);
+    }
+    | expression alias COMMA expression_list
+    {
+      if ($4 != nullptr) {
+        $$ = $4;
+      } else {
+        $$ = new std::vector<Expression *>;
+      }
+      $1->set_alias($2);
+      $$->emplace_back($1);
+      free($2);
     }
     ;
 expression:

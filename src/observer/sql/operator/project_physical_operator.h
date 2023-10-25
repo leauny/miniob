@@ -23,16 +23,10 @@ See the Mulan PSL v2 for more details. */
 class ProjectPhysicalOperator : public PhysicalOperator
 {
 public:
-  ProjectPhysicalOperator()
+  ProjectPhysicalOperator(std::vector<std::unique_ptr<Expression>> &&expressions) : tuple_(expressions)
   {}
 
   virtual ~ProjectPhysicalOperator() = default;
-
-  void add_expressions(std::vector<std::unique_ptr<Expression>> &&expressions)
-  {
-    
-  }
-  void add_projection(const Table *table, const FieldMeta *field, const std::string& alias, FuncType type, std::string func_parm);
 
   PhysicalOperatorType type() const override
   {
@@ -48,6 +42,12 @@ public:
     return tuple_.cell_num();
   }
 
+  void set_agg(bool has_agg) { has_agg_ = has_agg; }
+
+  const std::string name_at(int i) const { return tuple_.name_at(i); }
+
+  const std::string alias_at(int i) const { return tuple_.alias_at(i); }
+
   Tuple *current_tuple() override;
 
 private:
@@ -56,12 +56,9 @@ private:
    * */
   RC do_aggregation();
 
-  RC compute_aggregation(FuncType type, Value &ans, const Value &val, int &count);
-
   Tuple *current_tuple_norm();  // 用于在do_aggregation内调用
 
-  ProjectTuple tuple_;
+  ExpressionTuple tuple_;
   bool has_agg_ = false;
   LeafTuple *agg_tuple_ = nullptr;
-  LeafTuple *result_ = nullptr;
 };

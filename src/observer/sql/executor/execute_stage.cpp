@@ -27,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/default/default_handler.h"
 #include "sql/executor/command_executor.h"
 #include "sql/operator/calc_physical_operator.h"
+#include "sql/operator/project_physical_operator.h"
 
 using namespace std;
 using namespace common;
@@ -62,33 +63,30 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   unique_ptr<PhysicalOperator> &physical_operator = sql_event->physical_operator();
   ASSERT(physical_operator != nullptr, "physical operator should not be null");
 
-  // TODO 这里也可以优化一下，是否可以让physical operator自己设置tuple schema
   TupleSchema schema;
   switch (stmt->type()) {
     case StmtType::SELECT: {
-      SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
-      bool with_table_name = select_stmt->tables().size() > 1;
-
-      // TODO: 可能需要在这里判断别名冲突
-      for (const auto &expr : select_stmt->query_exprs()) {
-        // TODO: 支持表达式的话就不能转换为FieldExpr*了
-        auto e = dynamic_cast<FieldExpr*>(expr);
-        if (!e->alias().empty()) {
-          schema.append_cell(e->alias().c_str());
+      const auto *oper = dynamic_cast<ProjectPhysicalOperator*>(physical_operator.get());
+      for (int i = 0; i < oper->cell_num(); ++i) {
+        if (!oper->alias_at(i).empty()) {
+          schema.append_cell(oper->alias_at(i).c_str());
           continue;
-        }
-        if (with_table_name) {
-          schema.append_cell(e->field().table_name(), e->field().field_name(), e->field().func_type());
         } else {
-          schema.append_cell(nullptr, e->field().field_name(), e->field().func_type());
+          schema.append_cell(oper->name_at(i).c_str());
         }
       }
     } break;
 
     case StmtType::CALC: {
-      CalcPhysicalOperator *calc_operator = static_cast<CalcPhysicalOperator *>(physical_operator.get());
-      for (const unique_ptr<Expression> & expr : calc_operator->expressions()) {
-        schema.append_cell(expr->name().c_str());
+      CalcPhysicalOperator *oper = static_cast<CalcPhysicalOperator *>(physical_operator.get());
+      for (int i = 0; i < oper->cell_num(); ++i) {
+        auto tuple = dynamic_cast<ExpressionTuple*>(oper->current_tuple());
+        if (!tuple->alias_at(i).empty()) {
+          schema.append_cell(tuple->alias_at(i).c_str());
+          continue;
+        } else {
+          schema.append_cell(tuple->name_at(i).c_str());
+        }
       }
     } break;
 

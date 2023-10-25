@@ -51,17 +51,23 @@ class Table;
 class TupleSchema 
 {
 public:
-  void append_cell(const TupleCellSpec &cell)
+  void append_cell(TupleCellSpec&& cell)
   {
-    cells_.push_back(cell);
+    cells_.push_back(std::move(cell));
   }
-  void append_cell(const char *table, const char *field, FuncType type = FUNC_NONE)
+
+  void append_cell(TupleCellSpec& cell)
   {
-    append_cell(TupleCellSpec(table, field, nullptr, type));
+    cells_.push_back(std::move(cell));
   }
-  void append_cell(const char *alias, FuncType type = FUNC_NONE)
+
+  void append_cell(const char *table, const char *field)
   {
-    append_cell(TupleCellSpec(alias, type));
+    append_cell(TupleCellSpec(table, field, nullptr));
+  }
+  void append_cell(const char *alias)
+  {
+    append_cell(TupleCellSpec(alias));
   }
   int cell_num() const
   {
@@ -326,20 +332,6 @@ public:
     return tuple_->find_cell(spec, cell);
   }
 
-  FuncType func_type_at(int index) {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
-      return FUNC_NONE;
-    }
-    return speces_[index]->func_type();
-  }
-
-  std::string func_parm_at(int index) {
-    if (index < 0 || index >= static_cast<int>(speces_.size())) {
-      return "";
-    }
-    return speces_[index]->func_parm();
-  }
-
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
   {
@@ -359,17 +351,24 @@ class ExpressionTuple : public Tuple
 {
 public:
   ExpressionTuple(std::vector<std::unique_ptr<Expression>> &expressions)
-    : expressions_(expressions)
-  {
+    : expressions_(std::move(expressions)) {
   }
-  
-  virtual ~ExpressionTuple()
-  {
-  }
+
+  ~ExpressionTuple() override {}
 
   int cell_num() const override
   {
     return expressions_.size();
+  }
+
+  void set_tuple(Tuple *tuple)
+  {
+    this->tuple_ = tuple;
+  }
+
+  Tuple * get_tuple()
+  {
+    return tuple_;
   }
 
   RC cell_at(int index, Value &cell) const override
@@ -378,23 +377,37 @@ public:
       return RC::INTERNAL;
     }
 
-    const Expression *expr = expressions_[index].get();
-    return expr->try_get_value(cell);
+    Expression *expr = expressions_[index].get();
+    return expr->get_value(*tuple_, cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
-      if (0 == strcmp(spec.alias(), expr->name().c_str())) {
-        return expr->try_get_value(cell);
+      if (0 == strcmp(spec.alias(), expr->alias().c_str())) {
+        return expr->get_value(*tuple_, cell);
       }
     }
     return RC::NOTFOUND;
   }
 
+  const std::string& name_at(int i) const {
+    if (i < 0 || i >= expressions_.size()) {
+      LOG_ERROR("Wrong size.");
+    }
+    return expressions_[i]->name();
+  }
+
+  const std::string& alias_at(int i) const {
+    if (i < 0 || i >= expressions_.size()) {
+      LOG_ERROR("Wrong size.");
+    }
+    return expressions_[i]->alias();
+  }
 
 private:
-  const std::vector<std::unique_ptr<Expression>> &expressions_;
+  const std::vector<std::unique_ptr<Expression>> expressions_;
+  Tuple* tuple_;
 };
 
 /**

@@ -65,6 +65,10 @@ public:
     return expressions_;
   }
 
+  void set_expressions(std::vector<std::unique_ptr<Expression>> &expression) {
+    expressions_.swap(expression);
+  }
+
 protected:
   std::vector<std::unique_ptr<LogicalOperator>> children_;  ///< 子算子
 

@@ -84,8 +84,10 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   }
 
   // where子句中构建FieldExpr
+  bool has_aggr;
+  bool has_attr;
   for (auto &condition : update.conditions) {
-    rc = FieldExpr::build_field(condition, table);
+    rc = FieldExpr::build_field(condition, table, has_attr, has_aggr);
     if(OB_FAIL(rc)) { return rc; };
   }
 

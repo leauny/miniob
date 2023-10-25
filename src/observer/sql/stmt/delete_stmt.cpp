@@ -49,8 +49,9 @@ RC DeleteStmt::create(Db *db, const DeleteSqlNode &delete_sql, Stmt *&stmt)
   table_map.insert(std::pair<std::string, Table *>(std::string(table_name), table));
 
   // 构建FieldExpr
+  bool useless;
   for (auto &condition : delete_sql.conditions) {
-    rc = FieldExpr::build_field(condition, table);
+    rc = FieldExpr::build_field(condition, table, useless, useless);
     if(OB_FAIL(rc)) { return rc; };
   }
 

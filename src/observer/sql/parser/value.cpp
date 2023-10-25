@@ -458,6 +458,8 @@ bool Value::get_boolean() const
     } break;
     case DATES:
       return date_value_ != date(std::chrono::year(0), std::chrono::month(0), std::chrono::day(0));
+    case NULLS:
+      return false;
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);
       return false;

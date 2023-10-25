@@ -37,7 +37,13 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     }
     // 将条件都转换为bool类型
     std::unique_ptr<Expression> tmp = std::unique_ptr<Expression>(
-        new CastExpr(std::move(conjunc_expr->children()[0]), AttrType::BOOLEANS));
+        new CastExpr(
+            std::move(conjunc_expr->children()[0]),
+            AttrType::BOOLEANS,
+            conjunc_expr->children()[0]->name(),
+            conjunc_expr->children()[0]->alias()
+        )
+    );
     conjunc_expr->children()[0].swap(tmp);
     cmp_exprs.emplace_back(std::move(conjunc_expr->children()[0]));
   }

@@ -27,10 +27,7 @@ class Field
 {
 public:
   Field() = default;
-  Field(const Table *table, const FieldMeta *field) : table_(table), field_(field)
-  {}
-  Field(const Table *table, const FieldMeta *field, const FuncType type, std::string func_parm)
-      : table_(table), field_(field), function_(type), func_parm_(std::move(func_parm)) {}
+  Field(const Table *table, const FieldMeta *field) : table_(table), field_(field) {}
   Field(const Field &) = default;
 
   const Table *table() const
@@ -45,24 +42,6 @@ public:
   AttrType attr_type() const
   {
     return field_->type();
-  }
-
-  FuncType func_type() const
-  {
-    return function_;
-  }
-
-  void set_func_type(FuncType type) {
-    function_ = type;
-  }
-
-  std::string func_parm() const
-  {
-    return func_parm_;
-  }
-
-  void set_func_parm(const std::string &parm) {
-    func_parm_ = parm;
   }
 
   const char *table_name() const
@@ -95,7 +74,5 @@ public:
 private:
   const Table *table_ = nullptr;
   const FieldMeta *field_ = nullptr;
-  FuncType         function_ = FUNC_NONE;
-  std::string      func_parm_;
   std::string      alias_;
 };
