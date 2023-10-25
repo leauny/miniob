@@ -940,6 +940,14 @@ rel_expr:
       $$ = $2;
       $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
+    | rel_expr value {
+      if ($2->attr_type() != AttrType::INTS && $2->attr_type() != AttrType::FLOATS) { return -1; }
+      $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
+        std::unique_ptr<Expression>($1),
+        std::make_unique<ValueExpr>(*$2)
+      );
+      $$->set_name(token_name(sql_string, &@$));  // 设置名称
+    }
     | rel_expr '+' rel_expr {
       $$ = new ArithmeticExpr(ArithmeticExpr::Type::ADD,
         std::unique_ptr<Expression>($1),
