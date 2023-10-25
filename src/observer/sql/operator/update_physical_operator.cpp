@@ -40,7 +40,7 @@ RC UpdatePhysicalOperator::next()
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(expr);
           Value value;
           RowTuple tuple;
-          rc = subquery_expr->get_value(tuple, value);
+          rc = subquery_expr->get_value(&tuple, value);
           if (OB_FAIL(rc)) {
             return rc;
           }

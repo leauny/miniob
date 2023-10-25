@@ -378,14 +378,14 @@ public:
     }
 
     Expression *expr = expressions_[index].get();
-    return expr->get_value(*tuple_, cell);
+    return expr->get_value(tuple_, cell);
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
       if (0 == strcmp(spec.alias(), expr->alias().c_str())) {
-        return expr->get_value(*tuple_, cell);
+        return expr->get_value(tuple_, cell);
       }
     }
     return RC::NOTFOUND;

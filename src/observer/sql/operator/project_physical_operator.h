@@ -54,11 +54,12 @@ private:
   /**
    * @brief 通过在内部调用普通select步骤来执行聚集函数，最后将agg_tuple_复制给tuple_完成
    * */
-  RC do_aggregation();
+  RC do_aggregation(bool is_no_tuple);
 
-  Tuple *current_tuple_norm();  // 用于在do_aggregation内调用
+  Tuple *current_tuple_norm(bool is_no_tuple);  // 用于在do_aggregation内调用
 
   ExpressionTuple tuple_;
   bool has_agg_ = false;
+  bool agg_done_ = false;
   LeafTuple *agg_tuple_ = nullptr;
 };

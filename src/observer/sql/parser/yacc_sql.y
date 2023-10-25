@@ -548,6 +548,16 @@ value:
         free($3);
         @$ = @1;
     }
+    | ROUND LBRACE value RBRACE
+    {
+        if ($3->attr_type() != AttrType::FLOATS) {
+          LOG_ERROR("round function only support float type.");
+          return -1;
+        }
+        $$ = new Value((std::round($3->get_float())));
+        free($3);
+        @$ = @1;
+    }
     | DATE_FORMAT LBRACE value COMMA SSS RBRACE
     {
         if ($3->attr_type() != AttrType::DATES) {
@@ -763,7 +773,6 @@ rel_attr:
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
       free($1);
-      @$ = @1;
     }
     | ID DOT ID {
       $$ = new RelAttrSqlNode;
@@ -771,7 +780,6 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
-      @$ = @1;
     }
     | AGG LBRACE '*' RBRACE {
       $$ = new RelAttrSqlNode;
@@ -782,30 +790,30 @@ rel_attr:
         return -1;
       }
       $$->func_type = FUNC_WCOUNT;  // 通配符版本的count
-      @$ = @1;
     }
     | AGG LBRACE rel_attr RBRACE {
       $$ = $3;
       $$->func_type = $1;
-      @$ = @1;
     }
     | LENGTH LBRACE rel_attr RBRACE {
       $$ = $3;
       $$->func_type = FUNC_LENGTH;
-      @$ = @1;
     }
     | ROUND LBRACE rel_attr COMMA number RBRACE {
       $$ = $3;
       $$->func_type = FUNC_ROUND;
       $$->func_parm = std::to_string($5);
-      @$ = @1;
+    }
+    | ROUND LBRACE rel_attr RBRACE {
+      $$ = $3;
+      $$->func_type = FUNC_ROUND;
+      $$->func_parm = std::to_string(0);
     }
     | DATE_FORMAT LBRACE rel_attr COMMA SSS RBRACE {
       $$ = $3;
       $$->func_type = FUNC_DATE_FORMAT;
       $$->func_parm = common::substr($5,1,strlen($5)-2);
       free($5);
-      @$ = @1;
     }
     ;
 
@@ -1062,16 +1070,24 @@ rel_expr:
           if (type != FUNC_NONE) {
               std::string ans{};
               switch (type) {
-                case FUNC_MIN: ans += "min("; break;
-                case FUNC_MAX: ans += "max("; break;
-                case FUNC_AVG: ans += "avg("; break;
-                case FUNC_SUM: ans += "sum("; break;
+                case FUNC_MIN: ans += "min(" + name + ')'; break;
+                case FUNC_MAX: ans += "max(" + name + ')'; break;
+                case FUNC_AVG: ans += "avg(" + name + ')'; break;
+                case FUNC_SUM: ans += "sum(" + name + ')'; break;
                 case FUNC_COUNT:
-                case FUNC_WCOUNT: ans += "count("; break;
+                case FUNC_WCOUNT: ans += "count(" + name + ')'; break;
+                case FUNC_ROUND: {
+                  if (parm.empty()) {
+                    ans += "round(" + name + ')';
+                  } else {
+                    ans += "round(" + name + "," + parm + ')';
+                  }
+                } break;
+                case FUNC_LENGTH: ans += "length(" + name + ')'; break;
+                case FUNC_DATE_FORMAT: ans += "data_format(" + name + "," + parm + ')'; break;
                 default:
                   LOG_WARN("Wrong func type.");
               }
-              ans += name + ')';
               func_expr->set_name(ans);
           }
           $$ = func_expr;

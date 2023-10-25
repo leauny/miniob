@@ -77,7 +77,7 @@ public:
   /**
    * @brief 根据具体的tuple，来计算当前表达式的值。tuple有可能是一个具体某个表的行数据
    */
-  virtual RC get_value(const Tuple &tuple, Value &value) = 0;
+  virtual RC get_value(const Tuple *tuple, Value &value) = 0;
 
   /**
    * @brief 在没有实际运行的情况下，也就是无法获取tuple的情况下，尝试获取表达式的值
@@ -118,7 +118,7 @@ private:
 class StarExpr : public Expression {
 public:
   explicit StarExpr(const std::string &name = "", const std::string &alias = {}) : Expression(name, alias) {}
-  RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
+  RC get_value(const Tuple *tuple, Value &value) override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::STAR; }
   AttrType value_type() const override { return AttrType::UNDEFINED; }
 };
@@ -154,7 +154,7 @@ public:
 
   void set_field(Field field) { field_ = field; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
 
   RelAttrSqlNode& get_node() { return node_; }
 
@@ -179,7 +179,7 @@ public:
 
   virtual ~ValueExpr() = default;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
   RC try_get_value(Value &value) override { value = value_; return RC::SUCCESS; }
 
   ExprType type() const override { return ExprType::VALUE; }
@@ -212,7 +212,7 @@ public:
   {
     return ExprType::CAST;
   }
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
 
   RC try_get_value(Value &value) override;
 
@@ -243,7 +243,7 @@ public:
 
   ExprType type() const override { return ExprType::COMPARISON; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
 
   AttrType value_type() const override { return BOOLEANS; }
 
@@ -296,7 +296,7 @@ public:
 
   AttrType value_type() const override { return BOOLEANS; }
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
 
   Type conjunction_type() const { return conjunction_type_; }
 
@@ -340,7 +340,7 @@ public:
 
   AttrType value_type() const override;
 
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
   RC try_get_value(Value &value) override;
 
   Type arithmetic_type() const { return arithmetic_type_; }
@@ -366,7 +366,7 @@ public:
   explicit SubQueryExpr(ParsedSqlNode &node, const std::string &name = {}, const std::string &alias = {})
       : node_(node), Expression(name, alias) {}
   ParsedSqlNode& subquery_node() { return node_; }
-  RC get_value(const Tuple &tuple, Value &value) override;
+  RC get_value(const Tuple *tuple, Value &value) override;
   ExprType type() const override { return ExprType::SUBQUERY; }
   AttrType value_type() const override { return UNDEFINED; }
   const FieldMeta* field_meta() { return field_meta_; }
@@ -389,7 +389,7 @@ class ListExpr: public Expression {
 public:
   ListExpr(const std::string &name = {}, const std::string &alias = {})
       : Expression(name, alias) {}
-  RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
+  RC get_value(const Tuple *tuple, Value &value) override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::LIST; }
   AttrType value_type() const override { return UNDEFINED; }
 private:
@@ -404,7 +404,7 @@ class RelAttrExpr: public Expression {
 public:
   explicit RelAttrExpr(RelAttrSqlNode node, const std::string &name = {}, const std::string &alias = {})
     : node_(std::move(node)), Expression(name, alias) {}
-  RC get_value(const Tuple &tuple, Value &value) override { return RC::UNIMPLENMENT; }
+  RC get_value(const Tuple *tuple, Value &value) override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::REL_ATTR; }
   AttrType value_type() const override { return UNDEFINED; }
   RelAttrSqlNode & node() { return node_; }
@@ -421,7 +421,7 @@ public:
   explicit FuncExpr(Expression* field, const std::string &name = {}, const std::string &alias = {})
       : child_(field), Expression(name, alias) {}
 
-  RC get_value(const Tuple &tuple, Value &value);
+  RC get_value(const Tuple *tuple, Value &value);
   ExprType type() const override { return ExprType::FUNC; }
   AttrType value_type() const override { return UNDEFINED; }
   void set_parm(const std::string &parm) { parm_ = parm; }
@@ -446,7 +446,7 @@ class TableExpr: public Expression {
 public:
   explicit TableExpr(const std::string &name = {}, const std::string &alias = {})
       : Expression(name, alias) {}
-  RC get_value(const Tuple &tuple, Value &value) override
+  RC get_value(const Tuple *tuple, Value &value) override
   { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::TABLE; }
   AttrType value_type() const override { return UNDEFINED; }

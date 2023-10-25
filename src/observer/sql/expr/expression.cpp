@@ -22,9 +22,14 @@ class PhysicalOperator;
 
 using namespace std;
 
-RC FieldExpr::get_value(const Tuple &tuple, Value &value)
+RC FieldExpr::get_value(const Tuple *tuple, Value &value)
 {
-  return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
+  if (tuple) {
+    return tuple->find_cell(TupleCellSpec(table_name(), field_name()), value);
+  } else {
+    value.set_null();
+    return RC::SUCCESS;
+  }
 }
 
 RC FieldExpr::build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg) {
@@ -168,7 +173,7 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table, bool &has_attr, 
   return RC::SUCCESS;
 }
 
-RC ValueExpr::get_value(const Tuple &tuple, Value &value)
+RC ValueExpr::get_value(const Tuple *tuple, Value &value)
 {
   value = value_;
   return RC::SUCCESS;
@@ -197,7 +202,7 @@ RC CastExpr::cast(const Value &value, Value &cast_value) const
   return rc;
 }
 
-RC CastExpr::get_value(const Tuple &tuple, Value &cell)
+RC CastExpr::get_value(const Tuple *tuple, Value &cell)
 {
   RC rc = child_->get_value(tuple, cell);
   if (rc != RC::SUCCESS) {
@@ -289,7 +294,7 @@ RC ComparisonExpr::try_get_value(Value &cell)
   return RC::INVALID_ARGUMENT;
 }
 
-RC ComparisonExpr::get_value(const Tuple &tuple, Value &value)
+RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
 {
   Value left_value;
   Value right_value;
@@ -324,7 +329,7 @@ ConjunctionExpr::ConjunctionExpr(
     : conjunction_type_(type), left_(std::move(left)), right_(std::move(right)) {}
 */
 
-RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value)
+RC ConjunctionExpr::get_value(const Tuple *tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -437,7 +442,7 @@ RC ArithmeticExpr::calc_value(const Value &left_value, const Value &right_value,
   return rc;
 }
 
-RC ArithmeticExpr::get_value(const Tuple &tuple, Value &value)
+RC ArithmeticExpr::get_value(const Tuple *tuple, Value &value)
 {
   RC rc = RC::SUCCESS;
 
@@ -489,7 +494,7 @@ RC ArithmeticExpr::try_get_value(Value &value)
   return calc_value(left_value, right_value, value);
 }
 
-RC SubQueryExpr::get_value(const Tuple &tuple, Value &value)
+RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 {
   operator_->open(trx_);
   std::vector<Tuple *> subquery_result;
@@ -515,8 +520,31 @@ RC SubQueryExpr::get_value(const Tuple &tuple, Value &value)
   }
 }
 
-RC FuncExpr::get_value(const Tuple &tuple, Value &value) {
+RC FuncExpr::get_value(const Tuple *tuple, Value &value) {
   RC rc = RC::SUCCESS;
+
+  // 当tuple为nullptr，仅存在于select时没有元祖满足条件
+  if (!tuple) {
+    switch (type_) {
+      case FUNC_MIN:
+      case FUNC_MAX:
+      case FUNC_AVG:
+      case FUNC_SUM:
+      case FUNC_LENGTH:
+      case FUNC_ROUND:
+      case FUNC_DATE_FORMAT: {
+        value.set_null();
+        return rc;
+      }
+      case FUNC_COUNT:
+      case FUNC_WCOUNT: {
+        value.set_int(0);
+        return rc;
+      }
+      default:
+        return RC::INTERNAL;
+    }
+  }
 
   if (!child_) {
     return RC::EXPRESSION_INVALID;

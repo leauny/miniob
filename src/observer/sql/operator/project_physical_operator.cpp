@@ -41,14 +41,16 @@ RC ProjectPhysicalOperator::next()
     return RC::RECORD_EOF;
   }
   auto rc = RC::SUCCESS;
-  if (has_agg_) {
+  if (has_agg_ && !agg_done_) {
+    // 只会进入一次
     rc = children_[0]->next();
-    if (rc != RC::SUCCESS) {
+    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
       return rc;
     }
-    rc = do_aggregation();
-    if (rc != RC::SUCCESS) {
-      return rc;
+    if (rc == RC::RECORD_EOF) {
+      rc = do_aggregation(true);  // 不存在满足条件的元祖
+    } else {
+      rc = do_aggregation(false);
     }
     return rc;
   }
@@ -71,22 +73,25 @@ Tuple *ProjectPhysicalOperator::current_tuple()
     return agg_tuple_;
   }
 
-  return current_tuple_norm();
+  return current_tuple_norm(false);
 }
 
-Tuple *ProjectPhysicalOperator::current_tuple_norm()
+Tuple *ProjectPhysicalOperator::current_tuple_norm(bool is_no_tuple)
 {
-  tuple_.set_tuple(children_[0]->current_tuple());
+  if (is_no_tuple) {
+    tuple_.set_tuple(nullptr);
+  } else {
+    tuple_.set_tuple(children_[0]->current_tuple());
+  }
   return &tuple_;
 }
 
-RC ProjectPhysicalOperator::do_aggregation() {
+RC ProjectPhysicalOperator::do_aggregation(bool is_no_tuple)
+{
   RC rc = RC::SUCCESS;
   do {
-    auto tuple = current_tuple_norm();
-    assert(tuple != nullptr);
-
-    int cell_num = tuple->cell_num();
+    auto tuple = current_tuple_norm(is_no_tuple);
+    int cell_num = tuple_.cell_num();
     for (int i = 0; i < cell_num; i++) {
       Value value;
       rc = tuple->cell_at(i, value);
@@ -97,6 +102,6 @@ RC ProjectPhysicalOperator::do_aggregation() {
       agg_tuple_->set_value(i, value);
     }
   } while (!children_.empty() && RC::SUCCESS == children_[0]->next());
-
+  agg_done_ = true;
   return rc;
 }
