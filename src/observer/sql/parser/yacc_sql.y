@@ -1039,28 +1039,6 @@ rel_expr:
       );
       $$->set_name(token_name(sql_string, &@$));  // 设置名称
     }
-    | MIX_SUB {
-      // "col -5" situation
-      std::string str = $1;
-      auto pos = str.find("-");
-      ASSERT(pos != std::string::npos, "Wrong pattern.");
-      RelAttrSqlNode node;
-      node.attribute_name = str.substr(0, pos);
-
-      if (std::string::npos != str.find(".")) {
-        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
-          std::make_unique<FieldExpr>(node),
-          std::make_unique<ValueExpr>(Value(std::stof(str.substr(pos + 1).c_str())))
-        );
-      } else {
-        $$ = new ArithmeticExpr(ArithmeticExpr::Type::SUB,
-          std::make_unique<FieldExpr>(node),
-          std::make_unique<ValueExpr>(Value(std::stoi(str.substr(pos + 1).c_str())))
-        );
-      }
-      $$->set_name(token_name(sql_string, &@$));  // 设置名称
-      free($1);
-    }
     | rel_attr {
       if (0 == strcmp($1->attribute_name.c_str(), "*") && $1->func_type != FUNC_WCOUNT) {
         $$ = new StarExpr();
