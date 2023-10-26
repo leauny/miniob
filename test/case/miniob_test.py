@@ -1020,7 +1020,7 @@ def compile(work_dir: str, build_dir: str, cmake_args: str, make_args: str, rebu
         eval_result.append_message(output)
       return False
 
-  make_command = ["make", "--silent", "-C", build_path]
+  make_command = ["make", "-C", build_path]
   if isinstance(make_args, str):
     if not make_args:
       make_command.append('-j4')
