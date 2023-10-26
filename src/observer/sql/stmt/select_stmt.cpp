@@ -61,6 +61,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       return RC::INVALID_ARGUMENT;
     }
     auto table_name = select_sql.relations[i]->name();
+    auto table_alias = select_sql.relations[i]->alias();
     if (common::is_blank(table_name.c_str())) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
@@ -73,6 +74,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     tables.push_back(table);
+    table_map.insert(std::pair<std::string, Table *>(table_alias, table));
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
@@ -94,12 +96,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   } else {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
-      rc = FieldExpr::build_field(select_sql.attributes[i], db, has_attr, has_agg);
+      rc = FieldExpr::build_field(select_sql.attributes[i], table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }
 
     for (auto &condition : select_sql.conditions) {
-      rc = FieldExpr::build_field(condition, db, useless, useless);
+      rc = FieldExpr::build_field(condition, table_map, useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
   }

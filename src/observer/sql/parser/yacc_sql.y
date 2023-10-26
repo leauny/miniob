@@ -170,7 +170,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression_list>     where
 %type <expression_list>     condition_list
 %type <expression_list>     attr_list
-%type <expression_list>     rel_list
+%type <join_list>           rel_list
 %type <update_list>         update_list
 %type <expression>          rel_expr
 %type <expression>          expression
@@ -636,7 +636,7 @@ subquery:
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT attr_list FROM ID rel_list where
+    SELECT attr_list FROM rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -644,59 +644,18 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
-        $$->selection.relations = std::move(*$5);
-        delete $5;
+        $$->selection.conditions.swap(*$5);
       }
-      $$->selection.relations.push_back(new TableExpr($4));
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      free($4);
-
-      if ($6 != nullptr) {
-        $$->selection.conditions = std::move(*$6);
-      }
-    }
-    | SELECT attr_list FROM ID alias rel_list where
-    {
-      $$ = new ParsedSqlNode(SCF_SELECT);
-      if ($2 != nullptr) {
-        $$->selection.attributes = std::move(*$2);
-        delete $2;
-      }
-      if ($6 != nullptr) {
-        $$->selection.relations.swap(*$6);
-        delete $6;
-      }
-      $$->selection.relations.push_back(new TableExpr($4, $5));
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      free($4);
-      free($5);
-
-      if ($7 != nullptr) {
-        $$->selection.conditions = std::move(*$7);
-      }
-    }
-    | SELECT attr_list FROM ID join_stmt where
-    {
-      $$ = new ParsedSqlNode(SCF_SELECT);
-      if ($2 != nullptr) {
-        $$->selection.attributes = std::move(*$2);
-        delete $2;
-      }
-      if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
-      }
-      if ($5 != nullptr) {
-        for (auto &join : *$5) {
+      if ($4 != nullptr) {
+        for (auto &join : *$4) {
           $$->selection.relations.push_back(join.relation_name);
           for (auto &cond : join.conditions) {
             $$->selection.conditions.emplace_back(cond);
           }
         }
-        delete $5;
+        delete $4;
       }
-      $$->selection.relations.push_back(new TableExpr($4));
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-      free($4);
     }
     ;
 attr_list:
@@ -818,30 +777,95 @@ rel_attr:
     ;
 
 rel_list:
-    /* empty */
+    ID join_stmt
     {
-      $$ = nullptr;
+      $$ = $2;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1);
+      $$->emplace_back(join);
+      free($1);
     }
-    | COMMA ID rel_list {
+    | ID alias join_stmt
+    {
+      $$ = $3;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1, $2);
+      $$->emplace_back(join);
+      free($1);
+      free($2);
+    }
+    | ID
+    {
+      $$ = new std::vector<JoinSqlNode>;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1);
+      $$->emplace_back(join);
+      free($1);
+    }
+    | ID alias
+    {
+      $$ = new std::vector<JoinSqlNode>;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1, $2);
+      $$->emplace_back(join);
+      free($1);
+      free($2);
+    }
+    | ID join_stmt COMMA rel_list
+    {
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1);
+      if ($4 != nullptr) {
+        $$ = $4;
+        for (auto &n : *$2) {
+          $$->emplace_back(std::move(n));
+        }
+      } else {
+        $$ = $2;
+      }
+      $$->emplace_back(join);
+      free($1);
+    }
+    | ID alias join_stmt COMMA rel_list
+    {
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1, $2);
+      if ($5 != nullptr) {
+        $$ = $5;
+        for (auto &n : *$3) {
+          $$->emplace_back(std::move(n));
+        }
+      } else {
+        $$ = $3;
+      }
+      $$->emplace_back(join);
+      free($1);
+      free($2);
+    }
+    | ID COMMA rel_list
+    {
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        $$ = new std::vector<Expression*>();
+        $$ = new std::vector<JoinSqlNode>;
       }
-
-      $$->emplace_back(new TableExpr($2));
-      free($2);
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1);
+      $$->emplace_back(join);
+      free($1);
     }
-    | COMMA ID alias rel_list {
+    | ID alias COMMA rel_list
+    {
       if ($4 != nullptr) {
         $$ = $4;
       } else {
-        $$ = new std::vector<Expression*>();
+        $$ = new std::vector<JoinSqlNode>;
       }
-
-      $$->emplace_back(new TableExpr($2, $3));
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($1, $2);
+      $$->emplace_back(join);
+      free($1);
       free($2);
-      free($3);
     }
     ;
 where:

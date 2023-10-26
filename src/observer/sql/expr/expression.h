@@ -159,7 +159,7 @@ public:
   RelAttrSqlNode& get_node() { return node_; }
 
   static RC build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg);
-  static RC build_field(Expression *expr, Db* db, bool &has_attr, bool &has_agg);  // multi-table
+  static RC build_field(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, bool &has_attr, bool &has_agg);  // multi-table
   static RC create_field_expr(Expression *expr, Table *table, bool &has_attr, bool &has_agg, bool multi_table);
 
 private:

@@ -80,12 +80,14 @@ RC FieldExpr::build_field(Expression *expr, Table *table, bool &has_attr, bool &
 }
 
 // multi-table
-RC FieldExpr::build_field(Expression *expr, Db* db, bool &has_attr, bool &has_agg) {
+RC FieldExpr::build_field(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, bool &has_attr, bool &has_agg) {
   RC rc = RC::SUCCESS;
   switch (expr->type()) {
     case ExprType::FIELD: {
       auto field_expr = dynamic_cast<FieldExpr*>(expr);
-      auto table = db->find_table(field_expr->get_node().relation_name.c_str());
+      auto table =
+          table_map.count(field_expr->get_node().relation_name) == 1 ?
+          table_map.at(field_expr->get_node().relation_name) : nullptr;
       if (!table) {
         LOG_ERROR("No table name in attribute %s.", field_expr->get_node().relation_name.c_str());
         return RC::INTERNAL;
@@ -95,32 +97,32 @@ RC FieldExpr::build_field(Expression *expr, Db* db, bool &has_attr, bool &has_ag
     }break;
     case ExprType::COMPARISON: {
       auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
-      rc = build_field(comparison_expr->left().get(), db, has_attr, has_agg);
+      rc = build_field(comparison_expr->left().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(comparison_expr->right().get(), db, has_attr, has_agg);
+      rc = build_field(comparison_expr->right().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::CONJUNCTION: {
       for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
-        rc = build_field(expression.get(), db, has_attr, has_agg);
+        rc = build_field(expression.get(), table_map, has_attr, has_agg);
         if(OB_FAIL(rc)) { return rc; };
       }
     } break;
     case ExprType::CAST: {
       auto cast_expr = dynamic_cast<CastExpr*>(expr);
-      rc = build_field(cast_expr->child().get(), db, has_attr, has_agg);
+      rc = build_field(cast_expr->child().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     } break;
     case ExprType::ARITHMETIC: {
       auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
-      rc = build_field(arithmetic_expr->left().get(), db, has_attr, has_agg);
+      rc = build_field(arithmetic_expr->left().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
-      rc = build_field(arithmetic_expr->right().get(), db, has_attr, has_agg);
+      rc = build_field(arithmetic_expr->right().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     }break;
     case ExprType::FUNC: {
       auto func_expr = dynamic_cast<FuncExpr*>(expr);
-      rc = build_field(func_expr->child().get(), db, has_attr, has_agg);
+      rc = build_field(func_expr->child().get(), table_map, has_attr, has_agg);
       if(OB_FAIL(rc)) { return rc; };
     } break;
     default:
@@ -136,10 +138,12 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table, bool &has_attr, 
     return RC::SCHEMA_FIELD_NOT_EXIST;
   }
   auto attr_node = field_expr->get_node();
-  auto attribute_name = attr_node.attribute_name.c_str();
+  auto relation_name = attr_node.relation_name.empty()
+                            ? table->name() : attr_node.relation_name;
+  auto attribute_name = attr_node.attribute_name;
   auto alias = attr_node.alias;
   auto type = attr_node.func_type;
-  auto field_meta = table->table_meta().field(attribute_name);
+  auto field_meta = table->table_meta().field(attribute_name.c_str());
   if (type == FUNC_WCOUNT) {
     ASSERT(field_meta == nullptr, "Unknown error.");
     field_meta = table->table_meta().field(0);
@@ -153,7 +157,7 @@ RC FieldExpr::create_field_expr(Expression *expr, Table *table, bool &has_attr, 
   field_expr->set_field(field);
   if (multi_table && field_expr->alias().empty()) {
     // 如果多表情况下没有别名，则设置alias
-    field_expr->set_alias(std::string(table->name()) + "." + std::string(attribute_name));
+    field_expr->set_alias(relation_name + "." + attribute_name);
   } else {
     if (!alias.empty()) {
       LOG_WARN("RelAttrSqlNode and expr both have alias.");
