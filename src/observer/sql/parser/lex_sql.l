@@ -83,16 +83,21 @@ QUOTE            [\'\"]
 
 [\-]?{DIGIT}+                           yylval->number=atoi(yytext); RETURN_TOKEN(NUMBER);
 [\-]?{DIGIT}+{DOT}{DIGIT}+              yylval->floats=(float)(atof(yytext)); RETURN_TOKEN(FLOAT);
-\"([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})\"    |
-'([0-9]{4}-[0-9]{1,2}-[0-9]{1,2})'      {
+\"([0-9]{2,4}\/[0-9]{1,2}\/[0-9]{1,2})\"    |
+'([0-9]{2,4}\/[0-9]{1,2}\/[0-9]{1,2})'      |
+\"([0-9]{2,4}-[0-9]{1,2}-[0-9]{1,2})\"    |
+'([0-9]{2,4}-[0-9]{1,2}-[0-9]{1,2})'      {
                                             char *tmp = common::substr(yytext,1,strlen(yytext)-2);
                                             std::istringstream iss(tmp);
+                                            char delimiter = std::string(tmp).find('-') == std::string::npos
+                                                                                 ? '/' : '-';
                                             std::string token;
 
-                                            std::getline(iss, token, '-');
+                                            std::getline(iss, token, delimiter);
                                             int year = std::stoi(token);
+                                            if (year / 100 == 0) { year += 2000; }
 
-                                            std::getline(iss, token, '-');
+                                            std::getline(iss, token, delimiter);
                                             int month = std::stoi(token);
 
                                             std::getline(iss, token);

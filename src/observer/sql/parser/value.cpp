@@ -536,6 +536,7 @@ date Value::string_to_date(const char * data, int length)
 
   std::getline(iss, token, delimiter);
   int year = std::stoi(token);
+  if (year / 100 == 0) { year += 2000; }
 
   std::getline(iss, token, delimiter);
   int month = std::stoi(token);
