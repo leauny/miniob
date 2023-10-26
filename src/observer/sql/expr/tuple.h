@@ -420,17 +420,19 @@ public:
   ValueListTuple() = default;
   virtual ~ValueListTuple() = default;
 
+  explicit ValueListTuple(std::vector<Value>& value_list) : cells_(value_list) {};
+
   void set_cells(const std::vector<Value> &cells)
   {
     cells_ = cells;
   }
 
-  virtual int cell_num() const override
+  int cell_num() const override
   {
     return static_cast<int>(cells_.size());
   }
 
-  virtual RC cell_at(int index, Value &cell) const override
+  RC cell_at(int index, Value &cell) const override
   {
     if (index < 0 || index >= cell_num()) {
       return RC::NOTFOUND;
@@ -440,11 +442,23 @@ public:
     return RC::SUCCESS;
   }
 
-  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     return RC::INTERNAL;
   }
 
+  RC find(Value &cell) {
+    for (auto &c : cells_) {
+      if (c.compare(cell) == 0) {
+        return RC::SUCCESS;
+      }
+    }
+    return RC::NOTFOUND;
+  }
+
+  void add_value(Value &value) {
+    cells_.push_back(value);
+  }
 private:
   std::vector<Value> cells_;
 };

@@ -308,18 +308,32 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+  if (right_->type() == ExprType::SUBQUERY &&
+      dynamic_cast<SubQueryExpr*>(right_.get())->get_subquery_type() == SubQueryType::LIST_VALUE) {
+    ValueListTuple value_list;
+    auto* subquery = dynamic_cast<SubQueryExpr*>(right_.get());
+    subquery->list_get_value(value_list);
+    value_list.find(left_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(true);
+    } else {
+      value.set_boolean(false);
+    }
+  } else {
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+
+    bool bool_value = false;
+    rc = compare_value(left_value, right_value, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
     return rc;
   }
 
-  bool bool_value = false;
-  rc = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    value.set_boolean(bool_value);
-  }
-  return rc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,6 +512,11 @@ RC ArithmeticExpr::try_get_value(Value &value)
   return calc_value(left_value, right_value, value);
 }
 
+void SubQueryExpr::set_list_tuple(std::vector<Value> &value_list)
+{
+  list_tuple_ = new ValueListTuple(value_list);
+}
+
 RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 {
   operator_->open(trx_);
@@ -522,6 +541,28 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
     t->cell_at(0, value);
     return RC::SUCCESS;
   }
+}
+
+RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
+{
+  if (list_tuple_ == nullptr) {
+    list_tuple_ = new ValueListTuple();
+  }
+  if (operator_) {
+    operator_->open(trx_);
+    std::vector<Tuple *> subquery_result;
+    while (RC::SUCCESS == operator_->next()) {
+      Tuple* t = operator_->current_tuple();
+      int cell_num = t->cell_num();
+      for (int i = 0; i < cell_num; i++) {
+        Value value;
+        t->cell_at(i, value);
+        list_tuple_->add_value(value);
+      }
+    }
+  }
+  list_tuple = *list_tuple_;
+  return RC::SUCCESS;
 }
 
 RC FuncExpr::get_value(const Tuple *tuple, Value &value) {

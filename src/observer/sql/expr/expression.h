@@ -27,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 class Db;
 class Tuple;
 class PhysicalOperator;
+class ValueListTuple;
 
 /**
  * @defgroup Expression
@@ -363,22 +364,29 @@ private:
  */
 class SubQueryExpr: public Expression {
 public:
+  SubQueryExpr() = default;
   explicit SubQueryExpr(ParsedSqlNode &node, const std::string &name = {}, const std::string &alias = {})
       : node_(node), Expression(name, alias) {}
   ParsedSqlNode& subquery_node() { return node_; }
   RC get_value(const Tuple *tuple, Value &value) override;
+  RC list_get_value(ValueListTuple& list_tuple);
   ExprType type() const override { return ExprType::SUBQUERY; }
   AttrType value_type() const override { return UNDEFINED; }
   const FieldMeta* field_meta() { return field_meta_; }
   void set_field_meta(const FieldMeta* field_meta) { field_meta_ = field_meta; }
   void set_physical_operator(PhysicalOperator* oper) { operator_ = oper; }
   void set_trx(Trx* trx) { trx_ = trx; }
+  void set_list_tuple(std::vector<Value>& value_list);
+  void set_subquery_type(SubQueryType type) { subquery_type_ = type; }
+  SubQueryType& get_subquery_type() {return subquery_type_; }
 
 private:
+  SubQueryType subquery_type_;
   Trx* trx_;
   const FieldMeta* field_meta_;
   ParsedSqlNode node_;
-  PhysicalOperator* operator_;
+  PhysicalOperator* operator_ = nullptr;
+  ValueListTuple* list_tuple_ = nullptr;
 };
 
 /**

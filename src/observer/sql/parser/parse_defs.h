@@ -78,7 +78,15 @@ enum CompOp
   NOT_LIKE_TO,  ///< "not like"
   IS_NULL,      ///< "is null"
   IS_NOT_NULL,  ///< "is not null"
+  IN,           ///< "in"
+  NOT_IN,       ///< "not in"
   NO_OP
+};
+
+enum SubQueryType {
+  SINGLE_VALUE,
+  LIST_VALUE,
+  MULTI_TUPLE,
 };
 
 /**

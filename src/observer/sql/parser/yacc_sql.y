@@ -149,6 +149,10 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IS
         IS_NOT
         UNIQUE
+        IN_
+        NOT_IN_
+        EXISTS
+        NOT_EXISTS
 
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -955,6 +959,56 @@ condition:
         std::unique_ptr<Expression>($3)
       );
     }
+    | rel_attr comp_op subquery
+    {
+      auto field_expr = new FieldExpr(*$1);
+      auto subquery_expr = new SubQueryExpr(*$3);
+      subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
+    | rel_attr IN_ subquery
+    {
+      auto field_expr = new FieldExpr(*$1);
+      auto subquery_expr = new SubQueryExpr(*$3);
+      subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
+      $$ = new ComparisonExpr(CompOp::IN,
+        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
+    | rel_attr NOT_IN_ subquery
+    {
+      auto field_expr = new FieldExpr(*$1);
+      auto subquery_expr = new SubQueryExpr(*$3);
+      subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
+      $$ = new ComparisonExpr(CompOp::IN,
+        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
+    | rel_attr IN_ LBRACE value_list RBRACE
+    {
+      auto field_expr = new FieldExpr(*$1);
+      auto subquery_expr = new SubQueryExpr();
+      subquery_expr->set_list_tuple(*$4);
+      $$ = new ComparisonExpr(CompOp::IN,
+        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
+    | rel_attr NOT_IN_ LBRACE value_list RBRACE
+    {
+      auto field_expr = new FieldExpr(*$1);
+      auto subquery_expr = new SubQueryExpr();
+      subquery_expr->set_list_tuple(*$4);
+      $$ = new ComparisonExpr(CompOp::NOT_IN,
+        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
     ;
 
 rel_expr:
@@ -1120,6 +1174,7 @@ comp_op:
     | IS { $$ = IS_NULL; }
     | IS_NOT { $$ = IS_NOT_NULL; }
     ;
+
 join_stmt:
     INNER_JOIN ID ON condition_list {
       $$ = new std::vector<JoinSqlNode>;

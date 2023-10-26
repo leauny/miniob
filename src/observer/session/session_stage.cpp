@@ -166,6 +166,35 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
         subquery_expr->set_physical_operator(subquery->physical_operator().get());
       }
     }
+  } else if (sql_event->sql_node()->flag == SCF_SELECT) {
+    SelectSqlNode& select = sql_event->sql_node()->selection;
+    for (auto& expr : select.conditions) {
+      if (expr->type() == ExprType::COMPARISON) {
+        auto comparison_expr = dynamic_cast<ComparisonExpr *>(expr);
+        if (comparison_expr->right()->type() == ExprType::SUBQUERY) {
+          auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->right().get());
+          auto subquery      = new SQLStageEvent(sql_event->session_event());
+          subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
+          SqlResult *sql_result = subquery->session_event()->sql_result();
+          rc = resolve_stage_.handle_request(subquery);
+          if (OB_FAIL(rc)) {
+            LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+            sql_result->set_return_code(rc);
+            return rc;
+          }
+
+          // 生成子查询的物理执行计划操作符，留作后面处理
+          rc = optimize_stage_.handle_request(subquery);
+          if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
+            LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
+            sql_result->set_return_code(rc);
+            return rc;
+          }
+          subquery_expr->set_trx(subquery->session_event()->session()->current_trx());
+          subquery_expr->set_physical_operator(subquery->physical_operator().get());
+        }
+      }
+    }
   }
 
   rc = resolve_stage_.handle_request(sql_event);
