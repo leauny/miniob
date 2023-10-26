@@ -318,8 +318,6 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
 
     if (rc == RC::SUCCESS) {
       value.set_boolean(true);
-    } else {
-      value.set_boolean(false);
     }
   } else {
     rc = right_->get_value(tuple, right_value);

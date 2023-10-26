@@ -166,9 +166,17 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
         subquery_expr->set_physical_operator(subquery->physical_operator().get());
       }
     }
-  } else if (sql_event->sql_node()->flag == SCF_SELECT) {
-    SelectSqlNode& select = sql_event->sql_node()->selection;
-    for (auto& expr : select.conditions) {
+  }
+
+  rc = resolve_stage_.handle_request(sql_event);
+  if (OB_FAIL(rc)) {
+    LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+    return rc;
+  }
+
+  if (sql_event->sql_node()->flag == SCF_SELECT) {
+    SelectSqlNode &select = sql_event->sql_node()->selection;
+    for (auto &expr : select.conditions) {
       if (expr->type() == ExprType::COMPARISON) {
         auto comparison_expr = dynamic_cast<ComparisonExpr *>(expr);
         if (comparison_expr->right()->type() == ExprType::SUBQUERY) {
@@ -176,10 +184,10 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           if (subquery_expr->get_subquery_type() == SubQueryType::LIST_VALUE && subquery_expr->list_tuple_len() > 1) {
             continue;
           }
-          auto subquery      = new SQLStageEvent(sql_event->session_event());
+          auto subquery = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
           SqlResult *sql_result = subquery->session_event()->sql_result();
-          rc = resolve_stage_.handle_request(subquery);
+          rc                    = resolve_stage_.handle_request(subquery);
           if (OB_FAIL(rc)) {
             LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
             sql_result->set_return_code(rc);
@@ -199,13 +207,6 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
       }
     }
   }
-
-  rc = resolve_stage_.handle_request(sql_event);
-  if (OB_FAIL(rc)) {
-    LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
-    return rc;
-  }
-  
   rc = optimize_stage_.handle_request(sql_event);
   if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
     LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));

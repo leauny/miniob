@@ -959,55 +959,50 @@ condition:
         std::unique_ptr<Expression>($3)
       );
     }
-    | rel_attr comp_op subquery
+    | rel_expr comp_op subquery
     {
-      auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
       $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr IN_ subquery
+    | rel_expr IN_ subquery
     {
-      auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::IN,
-        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr NOT_IN_ subquery
+    | rel_expr NOT_IN_ subquery
     {
-      auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::IN,
-        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr IN_ record
+    | rel_expr IN_ record
     {
-      auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr();
       subquery_expr->set_list_tuple(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::IN,
-        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr NOT_IN_ record
+    | rel_expr NOT_IN_ record
     {
-      auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr();
       subquery_expr->set_list_tuple(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::NOT_IN,
-        std::unique_ptr<Expression>(field_expr),
+        std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
