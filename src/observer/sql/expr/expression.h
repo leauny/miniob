@@ -378,7 +378,8 @@ public:
   void set_trx(Trx* trx) { trx_ = trx; }
   void set_list_tuple(std::vector<Value>& value_list);
   void set_subquery_type(SubQueryType type) { subquery_type_ = type; }
-  SubQueryType& get_subquery_type() {return subquery_type_; }
+  SubQueryType& get_subquery_type() { return subquery_type_; }
+  int list_tuple_len();
 
 private:
   SubQueryType subquery_type_;

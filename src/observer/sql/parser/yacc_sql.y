@@ -989,21 +989,23 @@ condition:
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr IN_ LBRACE value_list RBRACE
+    | rel_attr IN_ record
     {
       auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr();
-      subquery_expr->set_list_tuple(*$4);
+      subquery_expr->set_list_tuple(*$3);
+      subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::IN,
         std::unique_ptr<Expression>(field_expr),
         std::unique_ptr<Expression>(subquery_expr)
       );
     }
-    | rel_attr NOT_IN_ LBRACE value_list RBRACE
+    | rel_attr NOT_IN_ record
     {
       auto field_expr = new FieldExpr(*$1);
       auto subquery_expr = new SubQueryExpr();
-      subquery_expr->set_list_tuple(*$4);
+      subquery_expr->set_list_tuple(*$3);
+      subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::NOT_IN,
         std::unique_ptr<Expression>(field_expr),
         std::unique_ptr<Expression>(subquery_expr)

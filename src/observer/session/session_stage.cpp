@@ -173,6 +173,9 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
         auto comparison_expr = dynamic_cast<ComparisonExpr *>(expr);
         if (comparison_expr->right()->type() == ExprType::SUBQUERY) {
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->right().get());
+          if (subquery_expr->get_subquery_type() == SubQueryType::LIST_VALUE && subquery_expr->list_tuple_len() > 1) {
+            continue;
+          }
           auto subquery      = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
           SqlResult *sql_result = subquery->session_event()->sql_result();

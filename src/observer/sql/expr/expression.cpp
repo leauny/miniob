@@ -303,6 +303,7 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
   Value left_value;
   Value right_value;
 
+  value.set_boolean(false);
   RC rc = left_->get_value(tuple, left_value);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
@@ -313,7 +314,8 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
     ValueListTuple value_list;
     auto* subquery = dynamic_cast<SubQueryExpr*>(right_.get());
     subquery->list_get_value(value_list);
-    value_list.find(left_value);
+    rc = value_list.find(left_value);
+
     if (rc == RC::SUCCESS) {
       value.set_boolean(true);
     } else {
@@ -331,9 +333,8 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
     if (rc == RC::SUCCESS) {
       value.set_boolean(bool_value);
     }
-    return rc;
   }
-
+  return rc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -515,6 +516,11 @@ RC ArithmeticExpr::try_get_value(Value &value)
 void SubQueryExpr::set_list_tuple(std::vector<Value> &value_list)
 {
   list_tuple_ = new ValueListTuple(value_list);
+}
+
+int SubQueryExpr::list_tuple_len()
+{
+  return list_tuple_->cell_num();
 }
 
 RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
