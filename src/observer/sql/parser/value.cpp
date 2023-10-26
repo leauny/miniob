@@ -491,7 +491,8 @@ const char *Value::date_to_string(date val) const
         is_format = false;
       } break;
       case 'D': {
-        format += 'd';
+        // c++会自动加空格，因此去除前面的%后直接写入结果
+        format = format.substr(0, format.size() - 1) + std::to_string(time.tm_mday);
         if (time.tm_mday % 10 == 1 && time.tm_mday != 11) {
           format += "st";
         } else if (time.tm_mday % 10 == 2 && time.tm_mday != 12) {
