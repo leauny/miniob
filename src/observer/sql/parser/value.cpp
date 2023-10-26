@@ -478,8 +478,38 @@ const char *Value::date_to_string(date val) const
   time.tm_mon = static_cast<unsigned>(val.month()) - 1;
   time.tm_mday = static_cast<unsigned>(val.day());
 
+  bool is_format = false;
+  std::string format;
+  for (char c : date_format_) {
+    switch (c) {
+      case '%': {
+        format += c;
+        is_format = !is_format;
+      } break;
+      case 'M': {
+        format += 'B';
+        is_format = false;
+      } break;
+      case 'D': {
+        format += 'd';
+        if (time.tm_mday % 10 == 1 && time.tm_mday != 11) {
+          format += "st";
+        } else if (time.tm_mday % 10 == 2 && time.tm_mday != 12) {
+          format += "nd";
+        } else if (time.tm_mday % 10 == 3 && time.tm_mday != 13) {
+          format += "rd";
+        } else {
+          format += "th";
+        }
+        is_format = false;
+      } break;
+      default:
+        format += c;
+    }
+  }
+
   std::stringstream ss;
-  ss << std::put_time(&time, date_format_.c_str());
+  ss << std::put_time(&time, format.c_str());
   std::string date_string = ss.str();
 
   // 分配动态内存来存储字符串，并复制字符串内容
