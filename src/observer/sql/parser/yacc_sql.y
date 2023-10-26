@@ -88,7 +88,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %token <floats> FLOAT
 %token <string> ID
 %token <string> SSS
-%token <string> MIX_SUB
 %token <func_t> AGG
 %token <dates>  DATE
 //非终结符

@@ -473,50 +473,13 @@ date Value::get_date() const {
 
 const char *Value::date_to_string(date val) const
 {
-  int yearValue = static_cast<int>(val.year());
-  int monthValue = static_cast<unsigned>(val.month());
-  int dayValue = static_cast<unsigned>(val.day());
-
-  std::istringstream format(date_format_);
-  std::vector<std::string> parts;
-  std::string part;
-  char delimiter = date_format_.find('-') == std::string::npos
-      ? '/' : '-';
-  while (std::getline(format, part, delimiter)) {
-    if (part.size() != 2) {
-      LOG_WARN("unknown date format pattern: %s", part.c_str());
-      continue;
-    }
-    parts.push_back(part);
-  }
+  std::tm time{};
+  time.tm_year = static_cast<int>(val.year()) - 1900;
+  time.tm_mon = static_cast<unsigned>(val.month()) - 1;
+  time.tm_mday = static_cast<unsigned>(val.day());
 
   std::stringstream ss;
-  bool first = true;
-  for (auto s : parts) {
-    if (!first) {
-      ss << delimiter;
-    } else {
-      first = false;
-    }
-    switch (s[1]) {
-      case 'y': {
-        ss << std::setw(2) << std::setfill('0') << yearValue % 100;
-      } break;
-      case 'Y': {
-        ss << yearValue;
-      } break;
-      case 'm': {
-        ss << std::setw(2) << std::setfill('0') << monthValue;
-      } break;
-      case 'd': {
-        ss << std::setw(2) << std::setfill('0') << dayValue;
-      } break;
-      default: {
-        LOG_WARN("unknown date format pattern: %s", s.c_str());
-      } break;
-    }
-  }
-
+  ss << std::put_time(&time, date_format_.c_str());
   std::string date_string = ss.str();
 
   // 分配动态内存来存储字符串，并复制字符串内容
