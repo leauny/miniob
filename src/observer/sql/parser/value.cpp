@@ -480,7 +480,9 @@ const char *Value::date_to_string(date val) const
   std::istringstream format(date_format_);
   std::vector<std::string> parts;
   std::string part;
-  while (std::getline(format, part, '-')) {
+  char delimiter = date_format_.find('-') == std::string::npos
+      ? '/' : '-';
+  while (std::getline(format, part, delimiter)) {
     if (part.size() != 2) {
       LOG_WARN("unknown date format pattern: %s", part.c_str());
       continue;
@@ -492,7 +494,7 @@ const char *Value::date_to_string(date val) const
   bool first = true;
   for (auto s : parts) {
     if (!first) {
-      ss << "-";
+      ss << delimiter;
     } else {
       first = false;
     }
@@ -528,12 +530,14 @@ date Value::string_to_date(const char * data, int length)
 {
   char * tmp = common::substr(data, 0, length - 1);
   std::istringstream iss(tmp);
+  char delimiter = std::string(tmp).find('-') == std::string::npos
+                                     ? '/' : '-';
   std::string token;
 
-  std::getline(iss, token, '-');
+  std::getline(iss, token, delimiter);
   int year = std::stoi(token);
 
-  std::getline(iss, token, '-');
+  std::getline(iss, token, delimiter);
   int month = std::stoi(token);
 
   std::getline(iss, token);
