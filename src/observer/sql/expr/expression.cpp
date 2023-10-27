@@ -541,6 +541,7 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
       subquery_result.push_back(tmp_value);
     }
     if (subquery_result.empty()) {
+      query_value_ = new Value();
       query_value_->set_null();
       value.set_null();
       return RC::SUCCESS;
