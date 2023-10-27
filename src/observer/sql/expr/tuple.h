@@ -447,11 +447,18 @@ public:
     return RC::INTERNAL;
   }
 
-  RC find(Value &cell) {
+  RC find(Value &cell, CompOp comp)
+  {
     for (auto &c : cells_) {
       if (c.compare(cell) == 0) {
-        return RC::SUCCESS;
+        if (comp == CompOp::IN) {
+          return RC::SUCCESS;
+        }
+        return RC::NOTFOUND;
       }
+    }
+    if (comp == CompOp::NOT_IN) {
+      return RC::SUCCESS;
     }
     return RC::NOTFOUND;
   }

@@ -314,18 +314,11 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
     ValueListTuple value_list;
     auto* subquery = dynamic_cast<SubQueryExpr*>(right_.get());
     subquery->list_get_value(value_list);
-    if (comp_ == IN) {
-      rc = value_list.find(left_value);
-      if (rc == RC::SUCCESS) {
-        value.set_boolean(true);
-      }
-    } else if (comp_ == NOT_IN){
-      rc = value_list.find(left_value);
-      if (rc != RC::SUCCESS) {
-        rc = RC::SUCCESS;
-        value.set_boolean(true);
-      }
+    rc = value_list.find(left_value, comp_);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(true);
     }
+    rc = RC::SUCCESS;
   } else {
     rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
@@ -559,10 +552,8 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 
 RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
 {
-  if (list_tuple_ == nullptr) {
+  if (operator_ && list_tuple_ == nullptr) {
     list_tuple_ = new ValueListTuple();
-  }
-  if (operator_) {
     operator_->open(trx_);
     std::vector<Tuple *> subquery_result;
     while (RC::SUCCESS == operator_->next()) {
