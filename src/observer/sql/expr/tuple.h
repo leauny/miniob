@@ -44,6 +44,14 @@ class Table;
  * 
  */
 
+enum TupleType {
+  PROJECT,
+  JOINED,
+  ROW,
+  VALUE,
+  EXPR,
+};
+
 /**
  * @brief 元组的结构，包含哪些字段(这里成为Cell)，每个字段的说明
  * @ingroup Tuple
@@ -91,6 +99,8 @@ class Tuple
 public:
   Tuple() = default;
   virtual ~Tuple() = default;
+
+  virtual TupleType type() const = 0;
 
   /**
    * @brief 获取元组中的Cell的个数
@@ -150,6 +160,8 @@ public:
     }
     speces_.clear();
   }
+
+  TupleType type() const override { return TupleType::ROW; }
 
   void set_record(Record *record)
   {
@@ -235,53 +247,6 @@ private:
 };
 
 /**
- * @brief 没有子元组的元组，用于自行构建元组
- * @ingroup Tuple
- */
-class LeafTuple : public Tuple
-{
-public:
-  LeafTuple() = default;
-  LeafTuple(int size) { set_size(size); }
-
-  RC cell_at(int index, Value &cell) const override
-  {
-    if (index < 0 || index >= static_cast<int>(values_.size())) {
-      return RC::INTERNAL;
-    }
-
-    cell = values_[index];
-    return RC::SUCCESS;
-  }
-
-  int cell_num() const override { return values_.size(); }
-
-  Value &get_value(int index)
-  {
-    ASSERT((index < 0 || index >= static_cast<int>(values_.size())), "index out of range.");
-    return values_[index];
-  }
-
-  void set_value(int index, Value value) {
-    ASSERT((index < 0 || index >= static_cast<int>(values_.size())), "index out of range.");
-    values_[index] = value;
-  }
-
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override {
-    // 无用
-    return RC::UNIMPLENMENT;
-  }
-
-  void set_size(int size) {
-    values_.reserve(size);
-    values_.resize(size);
-  }
-
-private:
-  std::vector<Value> values_;
-};
-
-/**
  * @brief 从一行数据中，选择部分字段组成的元组，也就是投影操作
  * @ingroup Tuple
  * @details 一般在select语句中使用。
@@ -299,6 +264,8 @@ public:
     }
     speces_.clear();
   }
+
+  TupleType type() const override { return TupleType::PROJECT; }
 
   void set_tuple(Tuple *tuple)
   {
@@ -356,6 +323,8 @@ public:
 
   ~ExpressionTuple() override {}
 
+  TupleType type() const override { return TupleType::EXPR; }
+
   int cell_num() const override
   {
     return expressions_.size();
@@ -378,7 +347,24 @@ public:
     }
 
     Expression *expr = expressions_[index].get();
-    return expr->get_value(tuple_, cell);
+
+    if (!tuple_) { return expr->get_value(tuple_, cell); }
+
+    switch (tuple_->type()) {
+      case JOINED:
+      case ROW:
+      case PROJECT:
+      case EXPR: {
+        return expr->get_value(tuple_, cell);
+      } break;
+      case VALUE: {
+        return tuple_->cell_at(index, cell);
+      } break;
+      default:
+        LOG_WARN("Unknown tuple type.");
+        return RC::INTERNAL;
+    }
+    return RC::INTERNAL;
   }
 
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
@@ -418,13 +404,29 @@ class ValueListTuple : public Tuple
 {
 public:
   ValueListTuple() = default;
+  explicit ValueListTuple(unsigned size) { set_size(size); }
   virtual ~ValueListTuple() = default;
 
+  TupleType type() const override { return TupleType::VALUE; }
+
   explicit ValueListTuple(std::vector<Value>& value_list) : cells_(value_list) {};
+
+  RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::UNIMPLENMENT; }
 
   void set_cells(const std::vector<Value> &cells)
   {
     cells_ = cells;
+  }
+
+  void set_cell_at(int index, Value value) {
+    ASSERT((index < 0 || index >= static_cast<int>(cells_.size())), "index out of range.");
+    cells_[index] = value;
+  }
+
+  void print() {
+    for (auto &n : cells_) {
+      std::cout << n.to_string() << ", ";
+    }
   }
 
   int cell_num() const override
@@ -442,9 +444,9 @@ public:
     return RC::SUCCESS;
   }
 
-  RC find_cell(const TupleCellSpec &spec, Value &cell) const override
-  {
-    return RC::INTERNAL;
+  void set_size(int size) {
+    cells_.reserve(size);
+    cells_.resize(size);
   }
 
   RC find(Value &cell) {
@@ -459,6 +461,13 @@ public:
   void add_value(Value &value) {
     cells_.push_back(value);
   }
+
+  void pop_value(int num = 0) {
+    for (int i = 0; i < num; ++i) {
+      cells_.pop_back();
+    }
+  }
+
 private:
   std::vector<Value> cells_;
 };
@@ -473,6 +482,8 @@ class JoinedTuple : public Tuple
 public:
   JoinedTuple() = default;
   virtual ~JoinedTuple() = default;
+
+  TupleType type() const override { return TupleType::JOINED; }
 
   void set_left(Tuple *left)
   {

@@ -131,6 +131,12 @@ public:
 class FieldExpr : public Expression 
 {
 public:
+  enum class Order {
+    NONE,
+    ASC,
+    DESC,
+  };
+public:
   FieldExpr() = delete;
   explicit FieldExpr(RelAttrSqlNode node, const std::string &name = {}, const std::string &alias = {})
       : node_(node), Expression(name, alias) {}
@@ -159,6 +165,10 @@ public:
 
   RelAttrSqlNode& get_node() { return node_; }
 
+  Order get_order() const { return order_; }
+
+  void  set_order(Order order) { order_ = order; }
+
   static RC build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg);
   static RC build_field(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, bool &has_attr, bool &has_agg);  // multi-table
   static RC create_field_expr(Expression *expr, Table *table, bool &has_attr, bool &has_agg, bool multi_table);
@@ -166,6 +176,7 @@ public:
 private:
   Field field_;
   RelAttrSqlNode node_;
+  Order order_{Order::NONE};
 };
 
 /**

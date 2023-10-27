@@ -30,7 +30,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
     return rc;
   }
   if (has_agg_ && !agg_tuple_) {
-    agg_tuple_ = new LeafTuple(tuple_.cell_num());
+    agg_tuple_ = new ValueListTuple((unsigned int)tuple_.cell_num());
   }
   return RC::SUCCESS;
 }
@@ -99,7 +99,7 @@ RC ProjectPhysicalOperator::do_aggregation(bool is_no_tuple)
         return rc;
       }
       if (!agg_tuple_) { return RC::INTERNAL; }
-      agg_tuple_->set_value(i, value);
+      agg_tuple_->set_cell_at(i, value);
     }
   } while (!children_.empty() && RC::SUCCESS == children_[0]->next());
   agg_done_ = true;
