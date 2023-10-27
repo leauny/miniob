@@ -321,7 +321,7 @@ public:
     : expressions_(std::move(expressions)) {
   }
 
-  ~ExpressionTuple() override {}
+  ~ExpressionTuple() override = default;
 
   TupleType type() const override { return TupleType::EXPR; }
 
@@ -393,7 +393,7 @@ public:
 
 private:
   const std::vector<std::unique_ptr<Expression>> expressions_;
-  Tuple* tuple_;
+  Tuple* tuple_{nullptr};
 };
 
 /**
