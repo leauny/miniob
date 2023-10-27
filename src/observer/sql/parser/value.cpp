@@ -486,11 +486,20 @@ const char *Value::date_to_string(date val) const
         format += c;
         is_format = !is_format;
       } break;
+      case 'n':
+      case 'z': {
+        if (!is_format) { format += c; break;}
+        // n和z不识别
+        format = format.substr(0, format.size() - 1) + c;
+        is_format = false;
+      } break;
       case 'M': {
+        if (!is_format) { format += c; break;}
         format += 'B';
         is_format = false;
       } break;
       case 'D': {
+        if (!is_format) { format += c; break;}
         // c++会自动加空格，因此去除前面的%后直接写入结果
         format = format.substr(0, format.size() - 1) + std::to_string(time.tm_mday);
         if (time.tm_mday % 10 == 1 && time.tm_mday != 11) {
@@ -506,6 +515,7 @@ const char *Value::date_to_string(date val) const
       } break;
       default:
         format += c;
+        is_format = false;
     }
   }
 
