@@ -3017,7 +3017,7 @@ yyreduce:
     {
       auto subquery_expr = new SubQueryExpr(*(yyvsp[0].sql_node));
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
-      (yyval.expression) = new ComparisonExpr(CompOp::IN,
+      (yyval.expression) = new ComparisonExpr(CompOp::NOT_IN,
         std::unique_ptr<Expression>((yyvsp[-2].expression)),
         std::unique_ptr<Expression>(subquery_expr)
       );
