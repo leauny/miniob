@@ -326,6 +326,12 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
       return rc;
     }
 
+    if (((left_->type() == ExprType::SUBQUERY && left_value.attr_type() == NULLS) ||
+            (right_->type() == ExprType::SUBQUERY && right_value.attr_type() == NULLS))
+        && (comp_ != CompOp::IS_NULL || comp_ != CompOp::IS_NOT_NULL)) {
+      return RC::INTERNAL;
+    }
+
     bool bool_value = false;
     rc = compare_value(left_value, right_value, bool_value);
     if (rc == RC::SUCCESS) {

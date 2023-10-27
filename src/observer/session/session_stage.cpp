@@ -146,7 +146,8 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
       if (expr->type() == ExprType::SUBQUERY) {
         auto subquery_expr = dynamic_cast<SubQueryExpr *>(expr);
         auto subquery = new SQLStageEvent(sql_event->session_event());
-        handle_subquey(subquery, subquery_expr);
+        rc = handle_subquey(subquery, subquery_expr);
+        if (OB_FAIL(rc)) { return rc; }
       }
     }
   }
@@ -163,12 +164,12 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
             continue;
           }
           auto subquery = new SQLStageEvent(sql_event->session_event());
-          handle_subquey(subquery, subquery_expr);
+          rc = handle_subquey(subquery, subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         } else if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto subquery = new SQLStageEvent(sql_event->session_event());
-          handle_subquey(subquery, subquery_expr);
+          rc = handle_subquey(subquery, subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
       }
@@ -195,6 +196,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
 
   return rc;
 }
+
 RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr) {
   RC rc = RC::SUCCESS;
   subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));

@@ -15,7 +15,11 @@ RC OrderPhysicalOperator::open(Trx *trx) {
     return rc;
   }
 
-  get_all_tuple();
+  rc = get_all_tuple();
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to get all tuple: %s", strrc(rc));
+    return rc;
+  }
 
   return RC::SUCCESS;
 }
@@ -64,8 +68,12 @@ RC OrderPhysicalOperator::collect_tuple_value(Tuple *tuple) {
 
 RC OrderPhysicalOperator::get_all_tuple() {
   RC rc = RC::SUCCESS;
-  while (!children_.empty() && RC::SUCCESS == children_[0]->next()) {
+  while (!children_.empty() && RC::SUCCESS == (rc = children_[0]->next())) {
     collect_tuple_value(current_tuple_norm());
+  }
+  if (rc != RC::RECORD_EOF) {
+    LOG_WARN("failed to get current record: %s", strrc(rc));
+    return rc;
   }
   return sort();
 }
