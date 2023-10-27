@@ -53,6 +53,10 @@ public:
   {
     return query_exprs_;
   }
+  std::vector<std::unique_ptr<Expression>> &order_fields()
+  {
+    return order_fields_;
+  }
   FilterStmt *filter_stmt() const
   {
     return filter_stmt_;
@@ -61,6 +65,7 @@ public:
 
 private:
   std::vector<std::unique_ptr<Expression>> query_exprs_;
+  std::vector<std::unique_ptr<Expression>> order_fields_;
   std::vector<Table *> tables_;
   bool has_agg_;
   FilterStmt *filter_stmt_ = nullptr;

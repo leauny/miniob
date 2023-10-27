@@ -215,7 +215,8 @@ RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
           rc = handle_subquey(sub_subquery, sub_subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
-        } else if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
+        }
+        if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
           auto sub_subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto sub_subquery = new SQLStageEvent(subquery->session_event());
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));

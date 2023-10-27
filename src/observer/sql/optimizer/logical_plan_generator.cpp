@@ -18,6 +18,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/project_logical_operator.h"
 #include "sql/operator/predicate_logical_operator.h"
+#include "sql/operator/order_logical_operator.h"
+#include "sql/operator/group_logical_operator.h"
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/insert_logical_operator.h"
 #include "sql/operator/delete_logical_operator.h"
@@ -199,17 +201,40 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
+  // 创建order operator (设置需要排序的列数)
+  int order_size = select_stmt->order_fields().size();
+  unique_ptr<LogicalOperator> order_oper = make_unique<OrderLogicalOperator>(order_size - all_exprs.size());
+  order_oper->set_expressions(select_stmt->order_fields());
+  if (order_size > 0) {
+    if (predicate_oper) {
+      if (table_oper) {
+        predicate_oper->add_child(std::move(table_oper));
+      }
+      order_oper->add_child(std::move(predicate_oper));
+    } else {
+      if (table_oper) {
+        order_oper->add_child(std::move(table_oper));
+      }
+    }
+  } else {
+    order_oper.reset();
+  }
+
   // 创建project operator
   unique_ptr<LogicalOperator> project_oper = make_unique<ProjectLogicalOperator>(select_stmt->get_agg());
   project_oper->set_expressions(all_exprs);  // 将查询内容移动到physical_oper
-  if (predicate_oper) {
-    if (table_oper) {
-      predicate_oper->add_child(std::move(table_oper));
-    }
-    project_oper->add_child(std::move(predicate_oper));
+  if (order_oper) {
+    project_oper->add_child(std::move(order_oper));
   } else {
-    if (table_oper) {
-      project_oper->add_child(std::move(table_oper));
+    if (predicate_oper) {
+      if (table_oper) {
+        predicate_oper->add_child(std::move(table_oper));
+      }
+      project_oper->add_child(std::move(predicate_oper));
+    } else {
+      if (table_oper) {
+        project_oper->add_child(std::move(table_oper));
+      }
     }
   }
 

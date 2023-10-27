@@ -138,8 +138,11 @@ struct SelectSqlNode  // selection
   std::vector<Expression *> attributes;  ///< attributes in select clause
   std::vector<Expression *> relations;   ///< from clause
   std::vector<Expression *> conditions;  ///< where clause
-  // TODO: order by
-  // TODO: group by
+
+  std::vector<Expression *> group;       ///< group by clause
+  std::vector<Expression *> having;      ///< group by having clause
+
+  std::vector<Expression *> order;       ///< order by clause
 };
 
 /**

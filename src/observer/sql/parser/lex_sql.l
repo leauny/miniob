@@ -111,6 +111,7 @@ QUOTE            [\'\"]
 {DOT}                                   RETURN_TOKEN(DOT);
 EXIT                                    RETURN_TOKEN(EXIT);
 HELP                                    RETURN_TOKEN(HELP);
+ASC                                     RETURN_TOKEN(ASC);
 DESC                                    RETURN_TOKEN(DESC);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
@@ -165,6 +166,9 @@ COUNT                                   { yylval->func_t = FUNC_COUNT; RETURN_TO
 IS                                      RETURN_TOKEN(IS);
 "IS NOT"                                RETURN_TOKEN(IS_NOT);
 "NOT LIKE"                              RETURN_TOKEN(NOT_LIKE);
+"GROUP BY"                              RETURN_TOKEN(GROUP_BY);
+"ORDER BY"                              RETURN_TOKEN(ORDER_BY);
+HAVING                                  RETURN_TOKEN(HAVING);
 LIKE                                    RETURN_TOKEN(LIKE);
 IN                                      RETURN_TOKEN(IN_);
 "NOT IN"                                RETURN_TOKEN(NOT_IN_);

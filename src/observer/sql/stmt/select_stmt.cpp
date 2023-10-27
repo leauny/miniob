@@ -78,7 +78,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
+  std::vector<std::unique_ptr<Expression>> order_expr;
+
   // 构建FieldExpr
+  // TODO: group by 走不同的逻辑，不再判断has_agg和has_attr，只需要判断attr是否在group by的参数内
   // TODO: 根据表的个数构建alias, 并且判断表名冲突
   bool has_attr  = false;
   bool has_agg = false;
@@ -86,6 +89,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   if (tables.size() == 1) {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
       rc = FieldExpr::build_field(select_sql.attributes[i], tables[0], has_attr, has_agg);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    // 处理order by
+    for (auto &order : select_sql.order) {
+      rc = FieldExpr::build_field(order, tables[0], useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
 
@@ -100,11 +109,18 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       if(OB_FAIL(rc)) { return rc; };
     }
 
+    // 处理order by
+    for (auto &order : select_sql.order) {
+      rc = FieldExpr::build_field(order, table_map, useless, useless);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
     for (auto &condition : select_sql.conditions) {
       rc = FieldExpr::build_field(condition, table_map, useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
   }
+
   // collect query fields in `select` statement
   std::vector<std::unique_ptr<Expression>> query_expressions;
   // 倒序处理是因为yacc_sql.y中select语句的attributes是尾插的
@@ -114,8 +130,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     switch (relation_attr->type()) {
       case ExprType::STAR: {
         has_attr = true;
-        for (Table *table : tables) {
-          wildcard_fields(table, query_expressions, tables.size() != 1);
+        // 反向添加，避免后期join时的顺序错误
+        for (int index = tables.size() - 1; index >= 0; --index) {
+          wildcard_fields(tables[index], query_expressions, tables.size() != 1);
+          // 处理order by的表达式
+          wildcard_fields(tables[index], order_expr, tables.size() != 1);
         }
       } break;
       case ExprType::FIELD:
@@ -128,7 +147,17 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::INTERNAL;
     }
 
+    // TODO: group by要判断
     if (has_attr && has_agg) { return RC::SCHEMA_MIXED_QUERY; }
+  }
+
+  // 处理order by
+  for (auto &expr : select_sql.order) {
+    if (expr->type() != ExprType::FIELD) {
+      LOG_WARN("Found unknown type %d", expr->type());
+      continue;
+    }
+    order_expr.emplace_back(expr);
   }
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_expressions.size());
@@ -157,6 +186,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->has_agg_ = has_agg;
+  select_stmt->order_fields_.swap(order_expr);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

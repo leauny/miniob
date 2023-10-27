@@ -61,5 +61,5 @@ private:
   ExpressionTuple tuple_;
   bool has_agg_ = false;
   bool agg_done_ = false;
-  LeafTuple *agg_tuple_ = nullptr;
+  ValueListTuple *agg_tuple_ = nullptr;
 };

@@ -100,6 +100,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INDEX
         CALC
         SELECT
+        ASC
         DESC
         SHOW
         SYNC
@@ -153,6 +154,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         NOT_IN_
         EXISTS
         NOT_EXISTS
+        GROUP_BY
+        ORDER_BY
+        HAVING
 
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
@@ -173,6 +177,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <expression_list>     where
 %type <expression_list>     condition_list
 %type <expression_list>     attr_list
+%type <expression_list>     order_list
 %type <join_list>           rel_list
 %type <update_list>         update_list
 %type <expression>          rel_expr
@@ -658,7 +663,100 @@ select_stmt:        /*  select 语句的语法解析树*/
         }
         delete $4;
       }
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+    }
+    | SELECT attr_list FROM rel_list where GROUP_BY attr_list
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes = std::move(*$2);
+        delete $2;
+      }
+      if ($5 != nullptr) {
+        $$->selection.conditions.swap(*$5);
+      }
+      if ($4 != nullptr) {
+        for (auto &join : *$4) {
+          $$->selection.relations.push_back(join.relation_name);
+          for (auto &cond : join.conditions) {
+            $$->selection.conditions.emplace_back(cond);
+          }
+        }
+        delete $4;
+      }
+      if ($7 != nullptr) {
+        $$->selection.group = std::move(*$7);
+        delete $7;
+      }
+    }
+    | SELECT attr_list FROM rel_list where GROUP_BY attr_list HAVING expression_list
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes = std::move(*$2);
+        delete $2;
+      }
+      if ($5 != nullptr) {
+        $$->selection.conditions.swap(*$5);
+      }
+      if ($4 != nullptr) {
+        for (auto &join : *$4) {
+          $$->selection.relations.push_back(join.relation_name);
+          for (auto &cond : join.conditions) {
+            $$->selection.conditions.emplace_back(cond);
+          }
+        }
+        delete $4;
+      }
+      if ($7 != nullptr) {
+        $$->selection.group = std::move(*$7);
+        delete $7;
+      }
+      if ($9 != nullptr) {
+        $$->selection.having = std::move(*$9);
+        delete $9;
+      }
+    }
+    | SELECT attr_list FROM rel_list where ORDER_BY order_list
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes = std::move(*$2);
+        delete $2;
+      }
+      if ($5 != nullptr) {
+        $$->selection.conditions.swap(*$5);
+      }
+      if ($4 != nullptr) {
+        for (auto &join : *$4) {
+          $$->selection.relations.push_back(join.relation_name);
+          for (auto &cond : join.conditions) {
+            $$->selection.conditions.emplace_back(cond);
+          }
+        }
+        delete $4;
+      }
+      for (int i = $$->selection.attributes.size() - 1; i >= 0; --i) {
+        auto ptr = $$->selection.attributes[i];
+        switch (ptr->type()) {
+          case ExprType::FIELD: {
+            auto tmp = dynamic_cast<FieldExpr*>(($$->selection.attributes)[i]);
+            $$->selection.order.emplace_back(new FieldExpr(tmp->get_node()));
+          } break;
+          case ExprType::STAR: {
+            $$->selection.order.emplace_back(new StarExpr("*"));
+          } break;
+          default: {
+            LOG_ERROR("Didn't support support expr type %d.", ($$->selection.attributes)[i]->type());
+            return -1;
+          }
+        }
+      }
+      if ($7 != nullptr) {
+        for (int i = 0; i < $7->size(); ++i) {
+          $$->selection.order.emplace_back((*$7)[i]);
+        }
+        delete $7;
+      }
     }
     ;
 attr_list:
@@ -871,6 +969,70 @@ rel_list:
       free($2);
     }
     ;
+
+order_list:
+    rel_attr 
+    {
+      if (0 == strcmp($1->attribute_name.c_str(), "*") || $1->func_type != FUNC_NONE) {
+        LOG_ERROR("Order by * / aggregation is not supported.");
+        free($1);
+        return -1;
+      }
+      auto name = $1->attribute_name;
+      auto alias = $1->alias;
+      auto tmp = new FieldExpr(*$1, name, alias);
+      tmp->set_order(FieldExpr::Order::ASC);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back(tmp);
+      free($1);
+    }
+    | rel_attr ASC
+    {
+      if (0 == strcmp($1->attribute_name.c_str(), "*") || $1->func_type != FUNC_NONE) {
+        LOG_ERROR("Order by * / aggregation is not supported.");
+        free($1);
+        return -1;
+      }
+      auto name = $1->attribute_name;
+      auto alias = $1->alias;
+      auto tmp = new FieldExpr(*$1, name, alias);
+      tmp->set_order(FieldExpr::Order::ASC);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back(tmp);
+      free($1);
+    }
+    | rel_attr DESC
+    {
+      if (0 == strcmp($1->attribute_name.c_str(), "*") || $1->func_type != FUNC_NONE) {
+        LOG_ERROR("Order by * / aggregation is not supported.");
+        free($1);
+        return -1;
+      }
+      auto name = $1->attribute_name;
+      auto alias = $1->alias;
+      auto tmp = new FieldExpr(*$1, name, alias);
+      tmp->set_order(FieldExpr::Order::DESC);
+      $$ = new std::vector<Expression*>;
+      $$->emplace_back(tmp);
+      free($1);
+    }
+    | order_list COMMA order_list
+    {
+      // 有序
+      if ($1 != nullptr) {
+        $$ = $1;
+      } else {
+        $$ = new std::vector<Expression*>;
+      }
+      if ($3 != nullptr) {
+        for(auto &n : *$3) {
+          $$->emplace_back(n);
+        }
+      }
+      delete $3;
+    }
+    ;
+    
 where:
     /* empty */
     {
@@ -975,6 +1137,17 @@ condition:
       $$ = new ComparisonExpr($2,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
+    | subquery comp_op subquery
+    {
+     auto subquery_expr_1 = new SubQueryExpr(*$1);
+     auto subquery_expr_2 = new SubQueryExpr(*$3);
+      subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
+      subquery_expr_2->set_subquery_type(SubQueryType::SINGLE_VALUE);
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>(subquery_expr_1),
+        std::unique_ptr<Expression>(subquery_expr_2)
       );
     }
     | rel_expr IN_ subquery
