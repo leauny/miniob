@@ -981,7 +981,7 @@ condition:
     {
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
-      $$ = new ComparisonExpr(CompOp::IN,
+      $$ = new ComparisonExpr(CompOp::NOT_IN,
         std::unique_ptr<Expression>($1),
         std::unique_ptr<Expression>(subquery_expr)
       );

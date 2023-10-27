@@ -314,10 +314,17 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
     ValueListTuple value_list;
     auto* subquery = dynamic_cast<SubQueryExpr*>(right_.get());
     subquery->list_get_value(value_list);
-    rc = value_list.find(left_value);
-
-    if (rc == RC::SUCCESS) {
-      value.set_boolean(true);
+    if (comp_ == IN) {
+      rc = value_list.find(left_value);
+      if (rc == RC::SUCCESS) {
+        value.set_boolean(true);
+      }
+    } else if (comp_ == NOT_IN){
+      rc = value_list.find(left_value);
+      if (rc != RC::SUCCESS) {
+        rc = RC::SUCCESS;
+        value.set_boolean(true);
+      }
     }
   } else {
     rc = right_->get_value(tuple, right_value);
