@@ -526,28 +526,34 @@ int SubQueryExpr::list_tuple_len()
 
 RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 {
-  operator_->open(trx_);
-  std::vector<Tuple *> subquery_result;
-  while (RC::SUCCESS == operator_->next()) {
-    Tuple* t = operator_->current_tuple();
-    subquery_result.push_back(t);
-  }
-  if (subquery_result.empty()) {
-    value.set_null();
-    return RC::SUCCESS;
-  } else if (subquery_result.size() > 1) {
-    LOG_TRACE("subquery result is not a single value");
-    return RC::INTERNAL;
-  } else {
-    Tuple* t = subquery_result[0];
-    int cell_num = t->cell_num();
-    if (cell_num > 1) {
+  if (!query_value_) {
+    operator_->open(trx_);
+    std::vector<Value> subquery_result;
+    while (RC::SUCCESS == operator_->next()) {
+      auto t = operator_->current_tuple();
+      int cell_num = t->cell_num();
+      if (cell_num > 1) {
+        LOG_TRACE("subquery result is not a single value");
+        return RC::INTERNAL;
+      }
+      Value tmp_value;
+      t->cell_at(0, tmp_value);
+      subquery_result.push_back(tmp_value);
+    }
+    if (subquery_result.empty()) {
+      query_value_->set_null();
+      value.set_null();
+      return RC::SUCCESS;
+    } else if (subquery_result.size() > 1) {
       LOG_TRACE("subquery result is not a single value");
       return RC::INTERNAL;
+    } else {
+      query_value_ = new Value(subquery_result[0]);
     }
-    t->cell_at(0, value);
-    return RC::SUCCESS;
+    operator_->close();
   }
+  value = *query_value_;
+  return RC::SUCCESS;
 }
 
 RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
@@ -565,6 +571,7 @@ RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
         list_tuple_->add_value(value);
       }
     }
+    operator_->close();
   }
   list_tuple = *list_tuple_;
   return RC::SUCCESS;

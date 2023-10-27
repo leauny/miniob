@@ -145,25 +145,8 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     for (auto& [field, expr] : update.update_fields) {
       if (expr->type() == ExprType::SUBQUERY) {
         auto subquery_expr = dynamic_cast<SubQueryExpr *>(expr);
-        auto subquery      = new SQLStageEvent(sql_event->session_event());
-        subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
-        SqlResult *sql_result = subquery->session_event()->sql_result();
-        rc = resolve_stage_.handle_request(subquery);
-        if (OB_FAIL(rc)) {
-          LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
-          sql_result->set_return_code(rc);
-          return rc;
-        }
-
-        // 生成子查询的物理执行计划操作符，留作后面处理
-        rc = optimize_stage_.handle_request(subquery);
-        if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
-          LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
-          sql_result->set_return_code(rc);
-          return rc;
-        }
-        subquery_expr->set_trx(subquery->session_event()->session()->current_trx());
-        subquery_expr->set_physical_operator(subquery->physical_operator().get());
+        auto subquery = new SQLStageEvent(sql_event->session_event());
+        handle_subquey(subquery, subquery_expr);
       }
     }
   }
@@ -180,24 +163,13 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
             continue;
           }
           auto subquery = new SQLStageEvent(sql_event->session_event());
-          subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
-          SqlResult *sql_result = subquery->session_event()->sql_result();
-          rc                    = resolve_stage_.handle_request(subquery);
-          if (OB_FAIL(rc)) {
-            LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
-            sql_result->set_return_code(rc);
-            return rc;
-          }
-
-          // 生成子查询的物理执行计划操作符，留作后面处理
-          rc = optimize_stage_.handle_request(subquery);
-          if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
-            LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
-            sql_result->set_return_code(rc);
-            return rc;
-          }
-          subquery_expr->set_trx(subquery->session_event()->session()->current_trx());
-          subquery_expr->set_physical_operator(subquery->physical_operator().get());
+          handle_subquey(subquery, subquery_expr);
+          if (OB_FAIL(rc)) { return rc; }
+        } else if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
+          auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
+          auto subquery = new SQLStageEvent(sql_event->session_event());
+          handle_subquey(subquery, subquery_expr);
+          if (OB_FAIL(rc)) { return rc; }
         }
       }
     }
@@ -221,5 +193,54 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
 
+  return rc;
+}
+RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr) {
+  RC rc = RC::SUCCESS;
+  subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
+  SqlResult *sql_result = subquery->session_event()->sql_result();
+
+  if (subquery->sql_node()->flag == SCF_SELECT) {
+    for (auto &expr : subquery->sql_node()->selection.conditions) {
+      if (expr->type() == ExprType::CONJUNCTION &&
+          dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() == ExprType::COMPARISON) {
+        auto conjunction_expr = dynamic_cast<ConjunctionExpr*>(expr);
+        auto comparison_expr = dynamic_cast<ComparisonExpr *>(conjunction_expr->children()[0].get());
+        if (comparison_expr->right()->type() == ExprType::SUBQUERY) {
+          auto sub_subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->right().get());
+          if (sub_subquery_expr->get_subquery_type() == SubQueryType::LIST_VALUE && sub_subquery_expr->list_tuple_len() > 1) {
+            continue;
+          }
+          auto sub_subquery = new SQLStageEvent(subquery->session_event());
+          sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
+          rc = handle_subquey(sub_subquery, sub_subquery_expr);
+          if (OB_FAIL(rc)) { return rc; }
+        } else if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
+          auto sub_subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
+          auto sub_subquery = new SQLStageEvent(subquery->session_event());
+          sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
+          rc = handle_subquey(sub_subquery, sub_subquery_expr);
+          if (OB_FAIL(rc)) { return rc; }
+        }
+      }
+    }
+  }
+
+  rc = resolve_stage_.handle_request(subquery);
+  if (OB_FAIL(rc)) {
+    LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+    sql_result->set_return_code(rc);
+    return rc;
+  }
+
+  // 生成子查询的物理执行计划操作符，留作后面处理
+  rc = optimize_stage_.handle_request(subquery);
+  if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
+    LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));
+    sql_result->set_return_code(rc);
+    return rc;
+  }
+  subquery_expr->set_trx(subquery->session_event()->session()->current_trx());
+  subquery_expr->set_physical_operator(subquery->physical_operator().get());
   return rc;
 }

@@ -158,6 +158,27 @@ RC PlainCommunicator::write_debug(SessionEvent *request, bool &need_disconnect)
 RC PlainCommunicator::write_result(SessionEvent *event, bool &need_disconnect)
 {
   RC rc = write_result_internal(event, need_disconnect);
+  if (rc != RC::SUCCESS) {
+    writer_->reset();
+    const int buf_size = 2048;
+    char *buf = new char[buf_size];
+    const char *result = RC::SUCCESS == rc ? "SUCCESS" : "FAILURE";
+    snprintf(buf, buf_size, "%s\n", result);
+
+    RC rc = writer_->writen(buf, strlen(buf));
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+      need_disconnect = true;
+      delete[] buf;
+      return RC::IOERR_WRITE;
+    }
+
+    need_disconnect = false;
+    delete[] buf;
+
+    writer_->flush();
+    return RC::SUCCESS;
+  }
   if (!need_disconnect) {
     RC rc1 = write_debug(event, need_disconnect);
     if (OB_FAIL(rc1)) {
@@ -172,7 +193,7 @@ RC PlainCommunicator::write_result(SessionEvent *event, bool &need_disconnect)
       return rc;
     }
   }
-  writer_->flush(); // TODO handle error
+  writer_->flush();
   return rc;
 }
 

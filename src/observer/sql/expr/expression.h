@@ -386,6 +386,7 @@ private:
   Trx* trx_;
   const FieldMeta* field_meta_;
   ParsedSqlNode node_;
+  Value* query_value_ = nullptr;
   PhysicalOperator* operator_ = nullptr;
   ValueListTuple* list_tuple_ = nullptr;
 };

@@ -959,6 +959,15 @@ condition:
         std::unique_ptr<Expression>($3)
       );
     }
+    | subquery comp_op rel_expr
+    {
+      auto subquery_expr = new SubQueryExpr(*$1);
+      subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
+      $$ = new ComparisonExpr($2,
+        std::unique_ptr<Expression>($3),
+        std::unique_ptr<Expression>(subquery_expr)
+      );
+    }
     | rel_expr comp_op subquery
     {
       auto subquery_expr = new SubQueryExpr(*$3);

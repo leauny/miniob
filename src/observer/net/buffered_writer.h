@@ -57,6 +57,15 @@ public:
    */
   RC flush();
 
+  void reset()
+  {
+    if (fd_ < 0) {
+      return;
+    }
+    buffer_.reset(); // 清空缓冲区，具体的 reset 函数实现可能需要根据你的 Buffer 类的实现来调整
+  }
+
+
 private:
   /**
    * @brief 刷新缓存
