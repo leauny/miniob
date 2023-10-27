@@ -168,17 +168,12 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     }
   }
 
-  rc = resolve_stage_.handle_request(sql_event);
-  if (OB_FAIL(rc)) {
-    LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
-    return rc;
-  }
-
   if (sql_event->sql_node()->flag == SCF_SELECT) {
-    SelectSqlNode &select = sql_event->sql_node()->selection;
-    for (auto &expr : select.conditions) {
-      if (expr->type() == ExprType::COMPARISON) {
-        auto comparison_expr = dynamic_cast<ComparisonExpr *>(expr);
+    for (auto &expr : sql_event->sql_node()->selection.conditions) {
+      if (expr->type() == ExprType::CONJUNCTION &&
+          dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() == ExprType::COMPARISON) {
+        auto conjunction_expr = dynamic_cast<ConjunctionExpr*>(expr);
+        auto comparison_expr = dynamic_cast<ComparisonExpr *>(conjunction_expr->children()[0].get());
         if (comparison_expr->right()->type() == ExprType::SUBQUERY) {
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->right().get());
           if (subquery_expr->get_subquery_type() == SubQueryType::LIST_VALUE && subquery_expr->list_tuple_len() > 1) {
@@ -207,6 +202,13 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
       }
     }
   }
+
+  rc = resolve_stage_.handle_request(sql_event);
+  if (OB_FAIL(rc)) {
+    LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
+    return rc;
+  }
+
   rc = optimize_stage_.handle_request(sql_event);
   if (rc != RC::UNIMPLENMENT && rc != RC::SUCCESS) {
     LOG_TRACE("failed to do optimize. rc=%s", strrc(rc));

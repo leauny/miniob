@@ -518,7 +518,10 @@ void SubQueryExpr::set_list_tuple(std::vector<Value> &value_list)
 
 int SubQueryExpr::list_tuple_len()
 {
-  return list_tuple_->cell_num();
+  if (list_tuple_) {
+    return list_tuple_->cell_num();
+  }
+  return 0;
 }
 
 RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
