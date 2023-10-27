@@ -543,7 +543,6 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
     if (subquery_result.empty()) {
       query_value_ = new Value();
       query_value_->set_null();
-      value.set_null();
       return RC::SUCCESS;
     } else if (subquery_result.size() > 1) {
       LOG_TRACE("subquery result is not a single value");
