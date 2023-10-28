@@ -1126,8 +1126,8 @@ condition:
       auto subquery_expr = new SubQueryExpr(*$1);
       subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
       $$ = new ComparisonExpr($2,
-        std::unique_ptr<Expression>($3),
-        std::unique_ptr<Expression>(subquery_expr)
+        std::unique_ptr<Expression>(subquery_expr),
+        std::unique_ptr<Expression>($3)
       );
     }
     | rel_expr comp_op subquery
@@ -1143,12 +1143,12 @@ condition:
     {
      auto subquery_expr_1 = new SubQueryExpr(*$1);
      auto subquery_expr_2 = new SubQueryExpr(*$3);
-      subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
-      subquery_expr_2->set_subquery_type(SubQueryType::SINGLE_VALUE);
-      $$ = new ComparisonExpr($2,
+     subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
+     subquery_expr_2->set_subquery_type(SubQueryType::SINGLE_VALUE);
+     $$ = new ComparisonExpr($2,
         std::unique_ptr<Expression>(subquery_expr_1),
         std::unique_ptr<Expression>(subquery_expr_2)
-      );
+     );
     }
     | rel_expr IN_ subquery
     {

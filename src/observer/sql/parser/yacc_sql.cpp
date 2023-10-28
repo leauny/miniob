@@ -3208,8 +3208,8 @@ yyreduce:
       auto subquery_expr = new SubQueryExpr(*(yyvsp[-2].sql_node));
       subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
       (yyval.expression) = new ComparisonExpr((yyvsp[-1].comp),
-        std::unique_ptr<Expression>((yyvsp[0].expression)),
-        std::unique_ptr<Expression>(subquery_expr)
+        std::unique_ptr<Expression>(subquery_expr),
+        std::unique_ptr<Expression>((yyvsp[0].expression))
       );
     }
 #line 3216 "yacc_sql.cpp"
@@ -3233,12 +3233,12 @@ yyreduce:
     {
      auto subquery_expr_1 = new SubQueryExpr(*(yyvsp[-2].sql_node));
      auto subquery_expr_2 = new SubQueryExpr(*(yyvsp[0].sql_node));
-      subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
-      subquery_expr_2->set_subquery_type(SubQueryType::SINGLE_VALUE);
-      (yyval.expression) = new ComparisonExpr((yyvsp[-1].comp),
+     subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
+     subquery_expr_2->set_subquery_type(SubQueryType::SINGLE_VALUE);
+     (yyval.expression) = new ComparisonExpr((yyvsp[-1].comp),
         std::unique_ptr<Expression>(subquery_expr_1),
         std::unique_ptr<Expression>(subquery_expr_2)
-      );
+     );
     }
 #line 3244 "yacc_sql.cpp"
     break;
