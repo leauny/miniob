@@ -191,7 +191,7 @@ public:
 
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
-    if (field_meta->nullable() && (0 == strcmp(this->record_->data() + field_meta->offset(), "\7\7\7"))) {
+    if (field_meta->nullable() && (0 == strcmp(this->record_->data() + field_meta->offset(), "\7"))) {
       cell.set_null();
       return RC::SUCCESS;
     }

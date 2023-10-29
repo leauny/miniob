@@ -172,7 +172,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   Value right_value;
 
   if (left_.is_attr) {  // value
-    if (0 == strcmp(rec.data() + left_.attr_offset, "\7\7\7")) {
+    if (0 == strcmp(rec.data() + left_.attr_offset, "\7")) {
       left_value.set_null();
     } else {
       left_value.set_type(attr_type_);
@@ -183,7 +183,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   }
 
   if (right_.is_attr) {
-    if (0 == strcmp(rec.data() + right_.attr_offset, "\7\7\7")) {
+    if (0 == strcmp(rec.data() + right_.attr_offset, "\7")) {
       left_value.set_null();
     } else {
       right_value.set_type(attr_type_);

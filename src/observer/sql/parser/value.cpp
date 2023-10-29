@@ -198,7 +198,7 @@ const char *Value::data() const
       return date_to_string(date_value_);
     } break;
     case NULLS: {
-      return "\7\7\7";
+      return "\7";
     } break;
     default: {
       return (const char *)&num_value_;

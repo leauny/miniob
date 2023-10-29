@@ -24,9 +24,9 @@ namespace common {
 int check_null_type(void *arg1, void *arg2) {
   const char* c1 = (char*)arg1;
   const char* c2 = (char*)arg2;
-  if (0 == strcmp(c1, "\7\7\7")) {
+  if (0 == strcmp(c1, "\7")) {
     return -1;
-  } else if (0 == strcmp(c2, "\7\7\7")) {
+  } else if (0 == strcmp(c2, "\7")) {
     return 1;
   }
   return 999;
