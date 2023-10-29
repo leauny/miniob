@@ -244,7 +244,7 @@ private:
  * @brief 比较表达式
  * @ingroup Expression
  */
-class ComparisonExpr : public Expression 
+class ComparisonExpr : public Expression
 {
 public:
   ComparisonExpr(CompOp comp,
@@ -447,7 +447,10 @@ public:
   AttrType value_type() const override { return UNDEFINED; }
   void set_parm(const std::string &parm) { parm_ = parm; }
   void set_type(FuncType type) { type_ = type; }
+  FuncType func_type() const { return type_; }
+  const std::string & get_parm() const { return parm_; }
   std::unique_ptr<Expression> &child()  { return child_;  }
+  void reset();
 private:
   std::unique_ptr<Expression> child_;
   FuncType type_{FUNC_NONE};

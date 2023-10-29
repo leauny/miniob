@@ -25,6 +25,10 @@ using namespace std;
 RC FieldExpr::get_value(const Tuple *tuple, Value &value)
 {
   if (tuple) {
+    if (tuple->type() == TupleType::VALUE && value.attr_type() == INTS) {
+      // Value存储的是index，用于传递信息保持接口统一
+      return tuple->cell_at(value.get_int(), value);
+    }
     return tuple->find_cell(TupleCellSpec(table_name(), field_name()), value);
   } else {
     value.set_null();
@@ -784,4 +788,12 @@ RC FuncExpr::get_value(const Tuple *tuple, Value &value) {
   }
 
   return RC::SUCCESS;
+}
+
+void FuncExpr::reset() {
+  w_count_ = 0;
+  count_ = 0;
+  min_ = Value();
+  max_ = Value();
+  sum_ = Value();
 }

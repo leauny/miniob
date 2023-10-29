@@ -60,6 +60,14 @@ struct RelAttrSqlNode
   std::string relation_name{};       ///< relation name (may be NULL) 表名, 也可以是别名
   std::string attribute_name{};      ///< attribute name              属性名
   std::string alias{};               ///< alias name                  别名
+
+  bool operator<(const RelAttrSqlNode &that) const {
+    if (relation_name == that.relation_name) {
+      return attribute_name < that.attribute_name;
+    } else {
+      return relation_name < that.relation_name;
+    }
+  }
 };
 
 /**

@@ -11,21 +11,45 @@
 
 class GroupPhysicalOperator : public PhysicalOperator {
 public:
-  PhysicalOperatorType type() const override {}
+  GroupPhysicalOperator() = default;
 
-  std::string name() const override {}
+  explicit GroupPhysicalOperator(int group_size, int having_size,
+      std::vector<std::unique_ptr<Expression>> &group, std::vector<std::unique_ptr<Expression>> &having)
+      : group_size_(group_size), having_size_(having_size), having_field_(std::move(having)), group_field_(std::move(group)) {}
 
-  RC open(Trx *trx) override {}
+  PhysicalOperatorType type() const override { return PhysicalOperatorType::GROUP; }
 
-  RC next() override {}
+  RC open(Trx *trx) override;
 
-  RC close() override {}
+  RC next() override;
 
-  Tuple * current_tuple() override {}
+  RC close() override;
+
+  RC get_all_tuple();
+
+  RC collect_tuple_value(Tuple *tuple);
+
+  Tuple * current_tuple() override;
+
+  RC create_group();
+
+  RC sort();
+
+  bool same_group(ValueListTuple *pre, ValueListTuple *now);
+
+  Tuple *current_tuple_norm()
+  {
+    return children_[0]->current_tuple();
+  }
 
 private:
-  std::unique_ptr<Expression> expression_;                      // 存放having中和聚集函数有关的内容
-  std::map<std::vector<Value>, std::vector<ValueListTuple>> group_;  // 存放所有的group
+  std::vector<ValueListTuple> tuples_;
+  std::vector<ValueListTuple> ans_;
+  std::vector<std::unique_ptr<Expression>> having_field_; // 存放having字段
+  std::vector<std::unique_ptr<Expression>> group_field_;  // 存放select + group + having的FieldExpr
+  int group_size_{};
+  int having_size_{};
+  int index_{-1};
 };
 
 #endif  // MINIDB_GROUP_PHYSICAL_OPERATOR_H

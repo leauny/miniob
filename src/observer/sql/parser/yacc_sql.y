@@ -124,8 +124,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         VALUES
         FROM
         WHERE
-        AND
         OR
+        AND
         SET
         ON
         AS
@@ -667,8 +667,43 @@ select_stmt:        /*  select 语句的语法解析树*/
     | SELECT attr_list FROM rel_list where GROUP_BY attr_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
+      
+      std::set<RelAttrSqlNode> attr_set;
+      if ($7 == nullptr) {
+        LOG_ERROR("Order by attr not exist.");
+        return -1;
+      }
+
+      for (auto &n : *$7) {
+        switch (n->type()) {
+          case ExprType::FIELD: {
+            attr_set.insert(dynamic_cast<FieldExpr*>(n)->get_node());
+          } break;
+          default:
+            LOG_ERROR("group by only support Field");
+            return -1;
+        }
+      }
+
       if ($2 != nullptr) {
         $$->selection.attributes = std::move(*$2);
+        for (auto &n : $$->selection.attributes) {
+          switch (n->type()) {
+            case ExprType::FIELD: {
+              // 判断select attr是否都存在于group attr
+              if (attr_set.count(dynamic_cast<FieldExpr*>(n)->get_node()) <= 0) {
+                LOG_ERROR("group by has field not in select.");
+                return -1;
+              }
+            } break;
+            case ExprType::FUNC: {
+              // do nothing.
+            } break;
+            default:
+              LOG_ERROR("group by select only support Field or Func");
+              return -1;
+          }
+        }
         delete $2;
       }
       if ($5 != nullptr) {
@@ -683,16 +718,71 @@ select_stmt:        /*  select 语句的语法解析树*/
         }
         delete $4;
       }
-      if ($7 != nullptr) {
-        $$->selection.group = std::move(*$7);
-        delete $7;
+
+      for (int i = $$->selection.attributes.size() - 1; i >= 0; --i) {
+        auto ptr = $$->selection.attributes[i];
+        switch (ptr->type()) {
+          case ExprType::FIELD: {
+            auto tmp = dynamic_cast<FieldExpr*>(($$->selection.attributes)[i]);
+            $$->selection.group.emplace_back(new FieldExpr(tmp->get_node()));
+          } break;
+          case ExprType::FUNC: {
+            // 将FuncExpr当做FieldExpr存入Order中
+            auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(($$->selection.attributes)[i])->child().get());
+            $$->selection.group.emplace_back(new FieldExpr(tmp->get_node()));
+          } break;
+          default: {
+            LOG_ERROR("Didn't support expr type %d.", ($$->selection.attributes)[i]->type());
+            return -1;
+          }
+        }
       }
+
+      for (int i = 0; i < $7->size(); ++i) {
+        $$->selection.group.emplace_back((*$7)[i]);
+      }
+      delete $7;
     }
-    | SELECT attr_list FROM rel_list where GROUP_BY attr_list HAVING expression_list
+    | SELECT attr_list FROM rel_list where GROUP_BY attr_list HAVING condition_list
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
+      
+      std::set<RelAttrSqlNode> attr_set;
+      if ($7 == nullptr) {
+        LOG_ERROR("Order by attr not exist.");
+        return -1;
+      }
+
+      for (auto &n : *$7) {
+        switch (n->type()) {
+          case ExprType::FIELD: {
+            attr_set.insert(dynamic_cast<FieldExpr*>(n)->get_node());
+          } break;
+          default:
+            LOG_ERROR("group by only support Field");
+            return -1;
+        }
+      }
+
       if ($2 != nullptr) {
         $$->selection.attributes = std::move(*$2);
+        for (auto &n : $$->selection.attributes) {
+          switch (n->type()) {
+            case ExprType::FIELD: {
+              // 判断select attr是否都存在于group attr
+              if (attr_set.count(dynamic_cast<FieldExpr*>(n)->get_node()) <= 0) {
+                LOG_ERROR("group by has field not in select.");
+                return -1;
+              }
+            } break;
+            case ExprType::FUNC: {
+              // do nothing.
+            } break;
+            default:
+              LOG_ERROR("group by select only support Field or Func");
+              return -1;
+          }
+        }
         delete $2;
       }
       if ($5 != nullptr) {
@@ -707,13 +797,61 @@ select_stmt:        /*  select 语句的语法解析树*/
         }
         delete $4;
       }
-      if ($7 != nullptr) {
-        $$->selection.group = std::move(*$7);
-        delete $7;
+
+      for (int i = $$->selection.attributes.size() - 1; i >= 0; --i) {
+        auto ptr = $$->selection.attributes[i];
+        switch (ptr->type()) {
+          case ExprType::FIELD: {
+            auto tmp = dynamic_cast<FieldExpr*>(($$->selection.attributes)[i]);
+            $$->selection.group.emplace_back(new FieldExpr(tmp->get_node()));
+          } break;
+          case ExprType::FUNC: {
+            // 将FuncExpr当做FieldExpr存入Order中
+            auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(($$->selection.attributes)[i])->child().get());
+            $$->selection.group.emplace_back(new FieldExpr(tmp->get_node()));
+          } break;
+          default: {
+            LOG_ERROR("Didn't support expr type %d.", ($$->selection.attributes)[i]->type());
+            return -1;
+          }
+        }
       }
+
+      for (int i = 0; i < $7->size(); ++i) {
+        $$->selection.group.emplace_back((*$7)[i]);
+      }
+      delete $7;
+
       if ($9 != nullptr) {
-        $$->selection.having = std::move(*$9);
+        $$->selection.having.swap(*$9);
         delete $9;
+
+        for (auto &expr : $$->selection.having) {
+          if (!(expr->type() == ExprType::CONJUNCTION
+                && dynamic_cast<ConjunctionExpr*>(expr)->conjunction_type() == ConjunctionExpr::Type::AND
+                && 1 == dynamic_cast<ConjunctionExpr*>(expr)->children().size()
+                && dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() == ExprType::COMPARISON
+                )) {
+               std::cout << "type: " << (int)expr->type() << std::endl;
+               std::cout << "size: " << dynamic_cast<ConjunctionExpr*>(expr)->children().size() << std::endl;
+               std::cout << "ctype: " << (int)dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() << std::endl;
+            LOG_ERROR("Only support conjunction 'and' in having.");
+            return -1;
+          }
+          const auto comp_expr = dynamic_cast<ComparisonExpr*>(dynamic_cast<ConjunctionExpr*>(expr)->children()[0].get());
+          if (comp_expr->left()->type() == ExprType::FUNC) {
+            // 将聚集条件拆分成FieldExpr放入order
+            std::cout << "left" << std::endl;
+            auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(comp_expr->left().get())->child().get())->get_node();
+            $$->selection.group.emplace_back(new FieldExpr(tmp));
+          }
+          if (comp_expr->right()->type() == ExprType::FUNC) {
+            // 将聚集条件拆分成FieldExpr放入order
+            std::cout << "ritht" << std::endl;
+            auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(comp_expr->right().get())->child().get())->get_node();
+            $$->selection.group.emplace_back(new FieldExpr(tmp));
+          }
+        }
       }
     }
     | SELECT attr_list FROM rel_list where ORDER_BY order_list
@@ -746,7 +884,7 @@ select_stmt:        /*  select 语句的语法解析树*/
             $$->selection.order.emplace_back(new StarExpr("*"));
           } break;
           default: {
-            LOG_ERROR("Didn't support support expr type %d.", ($$->selection.attributes)[i]->type());
+            LOG_ERROR("Didn't support expr type %d.", ($$->selection.attributes)[i]->type());
             return -1;
           }
         }
@@ -1308,30 +1446,6 @@ rel_expr:
           auto func_expr = new FuncExpr(field_expr);
           func_expr->set_parm(parm);
           func_expr->set_type(type);
-
-          if (type != FUNC_NONE) {
-              std::string ans{};
-              switch (type) {
-                case FUNC_MIN: ans += "min(" + name + ')'; break;
-                case FUNC_MAX: ans += "max(" + name + ')'; break;
-                case FUNC_AVG: ans += "avg(" + name + ')'; break;
-                case FUNC_SUM: ans += "sum(" + name + ')'; break;
-                case FUNC_COUNT:
-                case FUNC_WCOUNT: ans += "count(" + name + ')'; break;
-                case FUNC_ROUND: {
-                  if (parm.empty()) {
-                    ans += "round(" + name + ')';
-                  } else {
-                    ans += "round(" + name + "," + parm + ')';
-                  }
-                } break;
-                case FUNC_LENGTH: ans += "length(" + name + ')'; break;
-                case FUNC_DATE_FORMAT: ans += "data_format(" + name + "," + parm + ')'; break;
-                default:
-                  LOG_WARN("Wrong func type.");
-              }
-              func_expr->set_name(ans);
-          }
           $$ = func_expr;
         } else {
           $$ = field_expr;

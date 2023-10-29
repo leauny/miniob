@@ -57,6 +57,14 @@ public:
   {
     return order_fields_;
   }
+  std::vector<std::unique_ptr<Expression>> &group_fields()
+  {
+    return group_fields_;
+  }
+  std::vector<std::unique_ptr<Expression>> &having_fields()
+  {
+    return having_fields_;
+  }
   FilterStmt *filter_stmt() const
   {
     return filter_stmt_;
@@ -65,7 +73,17 @@ public:
 
 private:
   std::vector<std::unique_ptr<Expression>> query_exprs_;
+  // order by和group by的处理逻辑类似，默认不会同时出现两种情况
+  /*
+   * order_fields = query_exprs_ + order attr,
+   */
   std::vector<std::unique_ptr<Expression>> order_fields_;
+  /*
+   * group_fields = query_exprs_ + group attr + having的field_expr
+   */
+  std::vector<std::unique_ptr<Expression>> group_fields_;
+  std::vector<std::unique_ptr<Expression>> having_fields_;
+
   std::vector<Table *> tables_;
   bool has_agg_;
   FilterStmt *filter_stmt_ = nullptr;

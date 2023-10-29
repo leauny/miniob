@@ -78,10 +78,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
-  std::vector<std::unique_ptr<Expression>> order_expr;
-
   // 构建FieldExpr
-  // TODO: group by 走不同的逻辑，不再判断has_agg和has_attr，只需要判断attr是否在group by的参数内
   // TODO: 根据表的个数构建alias, 并且判断表名冲突
   bool has_attr  = false;
   bool has_agg = false;
@@ -95,6 +92,18 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     // 处理order by
     for (auto &order : select_sql.order) {
       rc = FieldExpr::build_field(order, tables[0], useless, useless);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    // 处理group by
+    for (auto &group : select_sql.group) {
+      rc = FieldExpr::build_field(group, tables[0], useless, useless);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    // 处理having
+    for (auto &having : select_sql.having) {
+      rc = FieldExpr::build_field(having, tables[0], useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
 
@@ -115,11 +124,25 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       if(OB_FAIL(rc)) { return rc; };
     }
 
+    // 处理group by
+    for (auto &group : select_sql.group) {
+      rc = FieldExpr::build_field(group, table_map, useless, useless);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
+    // 处理having
+    for (auto &having : select_sql.having) {
+      rc = FieldExpr::build_field(having, table_map, useless, useless);
+      if(OB_FAIL(rc)) { return rc; };
+    }
+
     for (auto &condition : select_sql.conditions) {
       rc = FieldExpr::build_field(condition, table_map, useless, useless);
       if(OB_FAIL(rc)) { return rc; };
     }
   }
+
+  std::vector<std::unique_ptr<Expression>> order_expr;
 
   // collect query fields in `select` statement
   std::vector<std::unique_ptr<Expression>> query_expressions;
@@ -147,8 +170,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::INTERNAL;
     }
 
-    // TODO: group by要判断
-    if (has_attr && has_agg) { return RC::SCHEMA_MIXED_QUERY; }
+    // group by时已经在parser阶段判断过了
+    if (select_sql.group.empty() && has_attr && has_agg) { return RC::SCHEMA_MIXED_QUERY; }
   }
 
   // 处理order by
@@ -158,6 +181,24 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       continue;
     }
     order_expr.emplace_back(expr);
+  }
+
+  // 处理group by(包括 select attr + group attr + having expr)
+  std::vector<std::unique_ptr<Expression>> group_expr;
+  for (auto &expr : select_sql.group) {
+    if (expr->type() != ExprType::FIELD
+        && expr->type() != ExprType::FUNC
+        && expr->type() != ExprType::CAST) {
+      sql_debug("Found unknown type %d", expr->type());
+      continue;
+    }
+    group_expr.emplace_back(expr);
+  }
+
+  // 处理having
+  std::vector<std::unique_ptr<Expression>> having_expr;
+  for (auto &expr : select_sql.having) {
+    having_expr.emplace_back(expr);
   }
 
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_expressions.size());
@@ -185,8 +226,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_exprs_.swap(query_expressions);
   select_stmt->filter_stmt_ = filter_stmt;
-  select_stmt->has_agg_ = has_agg;
+  select_stmt->has_agg_ = has_agg && group_expr.empty();
   select_stmt->order_fields_.swap(order_expr);
+  select_stmt->group_fields_.swap(group_expr);
+  select_stmt->having_fields_.swap(having_expr);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

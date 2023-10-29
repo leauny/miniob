@@ -449,6 +449,8 @@ public:
     cells_.resize(size);
   }
 
+  int size() const { return cells_.size(); }
+
   RC find(Value &cell, CompOp comp)
   {
     for (auto &c : cells_) {

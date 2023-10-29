@@ -173,6 +173,8 @@ RC LogicalPlanGenerator::create_plan(
   unique_ptr<LogicalOperator> table_oper(nullptr);
 
   const std::vector<Table *> &tables = select_stmt->tables();
+  // 当存在order by或group by时会有隐含的问题，order by/group by中其实需要获得更多的field，
+  // 但是拿表只拿了select的属性，如果使用索引方式取到表会存在错误（但测试用例可能没有测到）
   vector<unique_ptr<Expression>> &all_exprs = select_stmt->query_exprs();
   for (Table *table : tables) {
     std::vector<Field> fields;
@@ -201,30 +203,45 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
-  // 创建order operator (设置需要排序的列数)
-  int order_size = select_stmt->order_fields().size();
-  unique_ptr<LogicalOperator> order_oper = make_unique<OrderLogicalOperator>(order_size - all_exprs.size());
-  order_oper->set_expressions(select_stmt->order_fields());
+  // 创建order/group operator (设置需要排序的列数)
+  unique_ptr<LogicalOperator> order_group_oper{};
+  int order_size = select_stmt->order_fields().size() - all_exprs.size();
+  int group_size = select_stmt->group_fields().size() - all_exprs.size() - select_stmt->having_fields().size();
+
   if (order_size > 0) {
+    order_group_oper = make_unique<OrderLogicalOperator>(order_size);
+    order_group_oper->set_expressions(select_stmt->order_fields());
+  }
+
+  if (group_size > 0) {
+    if (order_group_oper) {
+      LOG_ERROR("Both have order and group by");
+      return RC::INTERNAL;
+    }
+    order_group_oper = make_unique<GroupLogicalOperator>(group_size, select_stmt->having_fields().size(),
+        select_stmt->group_fields(), select_stmt->having_fields());
+  }
+
+  if (order_size > 0 || group_size > 0) {
     if (predicate_oper) {
       if (table_oper) {
         predicate_oper->add_child(std::move(table_oper));
       }
-      order_oper->add_child(std::move(predicate_oper));
+      order_group_oper->add_child(std::move(predicate_oper));
     } else {
       if (table_oper) {
-        order_oper->add_child(std::move(table_oper));
+        order_group_oper->add_child(std::move(table_oper));
       }
     }
   } else {
-    order_oper.reset();
+    order_group_oper.reset();
   }
 
   // 创建project operator
   unique_ptr<LogicalOperator> project_oper = make_unique<ProjectLogicalOperator>(select_stmt->get_agg());
   project_oper->set_expressions(all_exprs);  // 将查询内容移动到physical_oper
-  if (order_oper) {
-    project_oper->add_child(std::move(order_oper));
+  if (order_group_oper) {
+    project_oper->add_child(std::move(order_group_oper));
   } else {
     if (predicate_oper) {
       if (table_oper) {

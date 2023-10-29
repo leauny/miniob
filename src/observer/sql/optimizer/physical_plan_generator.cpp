@@ -24,6 +24,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/project_physical_operator.h"
 #include "sql/operator/order_logical_operator.h"
 #include "sql/operator/order_physical_operator.h"
+#include "sql/operator/group_logical_operator.h"
+#include "sql/operator/group_physical_operator.h"
 #include "sql/operator/insert_logical_operator.h"
 #include "sql/operator/insert_physical_operator.h"
 #include "sql/operator/delete_logical_operator.h"
@@ -84,6 +86,10 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
 
     case LogicalOperatorType::ORDER: {
       return create_plan(static_cast<OrderLogicalOperator &>(logical_operator), oper);
+    } break;
+
+    case LogicalOperatorType::GROUP: {
+      return create_plan(static_cast<GroupLogicalOperator &>(logical_operator), oper);
     } break;
 
     default: {
@@ -353,5 +359,36 @@ RC PhysicalPlanGenerator::create_plan(OrderLogicalOperator &logic_oper, unique_p
   oper.reset(phy_oper);
 
   LOG_TRACE("create a order physical operator");
+  return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(GroupLogicalOperator &logic_oper, unique_ptr<PhysicalOperator> &oper)
+{
+  vector<unique_ptr<LogicalOperator>> &child_opers = logic_oper.children();
+
+  unique_ptr<PhysicalOperator> child_phy_oper;
+
+  RC rc = RC::SUCCESS;
+  if (!child_opers.empty()) {
+    LogicalOperator *child_oper = child_opers.front().get();
+    rc = create(*child_oper, child_phy_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
+      return rc;
+    }
+  }
+
+  auto &logic = dynamic_cast<GroupLogicalOperator&>(logic_oper);
+
+  auto *phy_oper = new GroupPhysicalOperator(
+      logic.get_group_size(), logic.get_having_size(), logic_oper.expressions(), logic_oper.having_expr());
+
+  if (child_phy_oper) {
+    phy_oper->add_child(std::move(child_phy_oper));
+  }
+
+  oper.reset(phy_oper);
+
+  LOG_TRACE("create a group physical operator");
   return rc;
 }

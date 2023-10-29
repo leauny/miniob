@@ -92,8 +92,8 @@ extern int yydebug;
     VALUES = 293,                  /* VALUES  */
     FROM = 294,                    /* FROM  */
     WHERE = 295,                   /* WHERE  */
-    AND = 296,                     /* AND  */
-    OR = 297,                      /* OR  */
+    OR = 296,                      /* OR  */
+    AND = 297,                     /* AND  */
     SET = 298,                     /* SET  */
     ON = 299,                      /* ON  */
     AS = 300,                      /* AS  */
