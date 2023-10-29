@@ -130,3 +130,4 @@ private:
 };
 
 RC value_cast(const FieldMeta* field_meta, Value &value);
+bool is_str_null(const void *str);

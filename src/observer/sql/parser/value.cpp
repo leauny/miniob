@@ -198,7 +198,7 @@ const char *Value::data() const
       return date_to_string(date_value_);
     } break;
     case NULLS: {
-      return "\7";
+      return "\0\7";
     } break;
     default: {
       return (const char *)&num_value_;
@@ -606,4 +606,11 @@ RC value_cast(const FieldMeta* field_meta, Value &value) {
     }
   }
   return RC::SUCCESS;
+}
+
+bool is_str_null(const void *str) {
+  if (*(char*)str == '\0' && *((char*)(str) + 1) == '\7') {
+    return true;
+  }
+  return false;
 }
