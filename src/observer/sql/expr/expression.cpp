@@ -71,6 +71,30 @@ RC FieldExpr::build_field(Expression *expr, Table *table, bool &has_attr, bool &
     case ExprType::FUNC: {
       auto func_expr = dynamic_cast<FuncExpr*>(expr);
       rc = build_field(func_expr->child().get(), table, has_attr, has_agg);
+      auto type = func_expr->func_type();
+      auto parm = func_expr->get_parm();
+      auto child_name = func_expr->child()->alias().empty() ? func_expr->child()->name() : func_expr->child()->alias();
+      std::string name{};
+      switch (type) {
+        case FUNC_MIN: name += "min(" + child_name + ')'; break;
+        case FUNC_MAX: name += "max(" + child_name + ')'; break;
+        case FUNC_AVG: name += "avg(" + child_name + ')'; break;
+        case FUNC_SUM: name += "sum(" + child_name + ')'; break;
+        case FUNC_COUNT:
+        case FUNC_WCOUNT: name += "count(" + child_name + ')'; break;
+        case FUNC_ROUND: {
+          if (parm.empty()) {
+            name += "round(" + child_name + ')';
+          } else {
+            name += "round(" + child_name + "," + parm + ')';
+          }
+        } break;
+        case FUNC_LENGTH: name += "length(" + child_name + ')'; break;
+        case FUNC_DATE_FORMAT: name += "data_format(" + child_name + "," + parm + ')'; break;
+        default:
+          LOG_WARN("Wrong func type.");
+      }
+      func_expr->set_name(name);  // 设置名称
       if(OB_FAIL(rc)) { return rc; };
     } break;
     default:
@@ -123,6 +147,30 @@ RC FieldExpr::build_field(Expression *expr, const std::unordered_map<std::string
     case ExprType::FUNC: {
       auto func_expr = dynamic_cast<FuncExpr*>(expr);
       rc = build_field(func_expr->child().get(), table_map, has_attr, has_agg);
+      auto type = func_expr->func_type();
+      auto parm = func_expr->get_parm();
+      auto child_name = func_expr->child()->alias().empty() ? func_expr->child()->name() : func_expr->child()->alias();
+      std::string name{};
+      switch (type) {
+        case FUNC_MIN: name += "min(" + child_name + ')'; break;
+        case FUNC_MAX: name += "max(" + child_name + ')'; break;
+        case FUNC_AVG: name += "avg(" + child_name + ')'; break;
+        case FUNC_SUM: name += "sum(" + child_name + ')'; break;
+        case FUNC_COUNT:
+        case FUNC_WCOUNT: name += "count(" + child_name + ')'; break;
+        case FUNC_ROUND: {
+          if (parm.empty()) {
+            name += "round(" + child_name + ')';
+          } else {
+            name += "round(" + child_name + "," + parm + ')';
+          }
+        } break;
+        case FUNC_LENGTH: name += "length(" + child_name + ')'; break;
+        case FUNC_DATE_FORMAT: name += "data_format(" + child_name + "," + parm + ')'; break;
+        default:
+          LOG_WARN("Wrong func type.");
+      }
+      func_expr->set_name(name);  // 设置名称
       if(OB_FAIL(rc)) { return rc; };
     } break;
     default:
