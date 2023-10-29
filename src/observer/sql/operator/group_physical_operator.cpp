@@ -52,7 +52,7 @@ Tuple *GroupPhysicalOperator::current_tuple() {
 
 RC GroupPhysicalOperator::collect_tuple_value(Tuple *tuple) {
   if (!tuple) {
-    return RC::INTERNAL;
+    return RC::RECORD_EOF;
   }
 
   std::vector<Value> record;
@@ -87,20 +87,26 @@ RC GroupPhysicalOperator::collect_tuple_value(Tuple *tuple) {
 RC GroupPhysicalOperator::get_all_tuple() {
   RC rc = RC::SUCCESS;
   while (!children_.empty() && RC::SUCCESS == (rc = children_[0]->next())) {
-    collect_tuple_value(current_tuple_norm());
+    rc = collect_tuple_value(current_tuple_norm());
+    if (OB_FAIL(rc) && rc != RC::RECORD_EOF) {
+      LOG_WARN("failed to get current record: %s", strrc(rc));
+      return rc;
+    }
   }
-  if (rc != RC::RECORD_EOF) {
-    LOG_WARN("failed to get current record: %s", strrc(rc));
-    return rc;
-  }
+
   return create_group();
 }
 
 RC GroupPhysicalOperator::create_group() {
   auto rc = sort();
-  if (!OB_SUCC(rc)) { return rc; }
+  if (!OB_SUCC(rc)) {
+    if (rc == RC::RECORD_EOF) {
+      return RC::SUCCESS;
+    }
+    return rc;
+  }
 
-  if (tuples_.empty()) { return RC::RECORD_EOF; }
+  if (tuples_.empty()) { return RC::SUCCESS; }
 
   // 将非聚集函数的FieldExpr转换为FuncExpr
   for (auto &n : group_field_) {
@@ -124,6 +130,12 @@ RC GroupPhysicalOperator::create_group() {
     }
   }
 
+  std::vector<ValueExpr*> having_val;
+  for (auto &having : having_field_) {
+    // 将having中的FuncExpr替换为ValueExpr并将其地址保存在Vector中
+    rc = get_filter_expr_addr(having_val, having);
+    if (OB_FAIL(rc)) { return rc; }
+  }
   std::vector<Value> record(tuples_[0].size());  // 设置tuple大小
 
   // 分组并构建元祖
@@ -133,8 +145,23 @@ RC GroupPhysicalOperator::create_group() {
     now = &n;
     bool same = same_group(last, now);
     if (!same && last) {
+      // Filter前一组的结果
+      int index = group_field_.size() - having_size_;
+      for (auto &val_expr : having_val) {
+        val_expr->set_value(record.at(index++));
+        if (OB_FAIL(rc)) { return rc; }
+      }
+      bool filtered = false;
+      for (auto &expr : having_field_) {
+        Value val;
+        expr->get_value(nullptr, val);
+        filtered = !val.get_boolean();  // false代表被过滤
+        if (filtered) { break; }
+      }
       // 将前一组的结果存下, reset FuncExpr
-      ans_.emplace_back(record);
+      if(!filtered) {
+        ans_.emplace_back(record);
+      }
       for (auto &expr : group_field_) {
         if (expr->type() == ExprType::FUNC) {
           // 重置聚集函数结果
@@ -174,14 +201,29 @@ RC GroupPhysicalOperator::create_group() {
 
   // 存储最后的一个结果
   if (now) {
-    ans_.emplace_back(record);
+    // Filter前一组的结果
+    int index = group_field_.size() - having_size_;
+    for (auto &val_expr : having_val) {
+      val_expr->set_value(record.at(index++));
+      if (OB_FAIL(rc)) { return rc; }
+    }
+    bool filtered = false;
+    for (auto &expr : having_field_) {
+      Value val;
+      expr->get_value(nullptr, val);
+      filtered = !val.get_boolean();  // false代表被过滤
+      if (filtered) { break; }
+    }
+    if(!filtered) {
+      ans_.emplace_back(record);
+    }
   }
 
   return rc;
 }
 
 RC GroupPhysicalOperator::sort() {
-  if (tuples_.empty()) { return RC::SUCCESS; }
+  if (tuples_.empty()) { return RC::RECORD_EOF; }
 
   std::vector<int> sort_list;
 
@@ -250,4 +292,83 @@ bool GroupPhysicalOperator::same_group(ValueListTuple *pre, ValueListTuple *now)
   }
 
   return true;
+}
+
+RC GroupPhysicalOperator::get_filter_expr_addr(
+    std::vector<ValueExpr *> &exprs_addr, std::unique_ptr<Expression> &filter_expr)
+{
+  RC rc = RC::SUCCESS;
+
+  switch (filter_expr->type()) {
+    case ExprType::CAST: {
+      auto e = dynamic_cast<CastExpr*>(filter_expr.get());
+      if (e->child()->type() == ExprType::FUNC) {
+        auto val = new ValueExpr();
+        exprs_addr.emplace_back(val);
+        e->child().reset(reinterpret_cast<Expression *>(val));
+        return RC::SUCCESS;
+      }
+      rc = get_filter_expr_addr(exprs_addr, e->child());
+    } break;
+    case ExprType::COMPARISON: {
+      auto e = dynamic_cast<ComparisonExpr*>(filter_expr.get());
+      if (e->left()->type() == ExprType::FUNC) {
+        auto val = new ValueExpr();
+        exprs_addr.emplace_back(val);
+        e->left().reset(reinterpret_cast<Expression *>(val));
+      } else {
+        rc = get_filter_expr_addr(exprs_addr, e->left());
+        if (OB_FAIL(rc)) { return rc; }
+      }
+      if (e->right()->type() == ExprType::FUNC) {
+        auto val = new ValueExpr();
+        exprs_addr.emplace_back(val);
+        e->right().reset(reinterpret_cast<Expression *>(val));
+      } else {
+        rc = get_filter_expr_addr(exprs_addr, e->right());
+        if (OB_FAIL(rc)) { return rc; }
+      }
+    } break;
+    case ExprType::CONJUNCTION: {
+      auto e = dynamic_cast<ConjunctionExpr*>(filter_expr.get());
+      for (auto &n : e->children()) {
+        if (n->type() == ExprType::FUNC) {
+          auto val = new ValueExpr();
+          exprs_addr.emplace_back(val);
+          n.reset(reinterpret_cast<Expression *>(val));
+        } else {
+          rc = get_filter_expr_addr(exprs_addr, n);
+          if (OB_FAIL(rc)) { return rc; }
+        }
+      }
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto e = dynamic_cast<ArithmeticExpr*>(filter_expr.get());
+      if (e->left()->type() == ExprType::FUNC) {
+        auto val = new ValueExpr();
+        exprs_addr.emplace_back(val);
+        e->left().reset(reinterpret_cast<Expression *>(val));
+      } else {
+        rc = get_filter_expr_addr(exprs_addr, e->left());
+        if (OB_FAIL(rc)) { return rc; }
+      }
+      if (e->right()->type() == ExprType::FUNC) {
+        auto val = new ValueExpr();
+        exprs_addr.emplace_back(val);
+        e->right().reset(reinterpret_cast<Expression *>(val));
+      } else {
+        rc = get_filter_expr_addr(exprs_addr, e->right());
+        if (OB_FAIL(rc)) { return rc; }
+      }
+    } break;
+    case ExprType::FUNC: {
+      // something wrong
+      LOG_ERROR("Unable to reach.");
+      return RC::INTERNAL;
+    } break;
+    default:
+      LOG_WARN("Unsupported filter type %d.", filter_expr->type());
+  }
+
+  return rc;
 }

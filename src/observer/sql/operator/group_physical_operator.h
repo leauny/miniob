@@ -37,6 +37,8 @@ public:
 
   bool same_group(ValueListTuple *pre, ValueListTuple *now);
 
+  RC get_filter_expr_addr(std::vector<ValueExpr *> &exprs_addr, std::unique_ptr<Expression> &filter_expr);
+
   Tuple *current_tuple_norm()
   {
     return children_[0]->current_tuple();

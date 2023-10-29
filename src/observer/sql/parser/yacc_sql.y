@@ -832,22 +832,22 @@ select_stmt:        /*  select 语句的语法解析树*/
                 && 1 == dynamic_cast<ConjunctionExpr*>(expr)->children().size()
                 && dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() == ExprType::COMPARISON
                 )) {
-               std::cout << "type: " << (int)expr->type() << std::endl;
-               std::cout << "size: " << dynamic_cast<ConjunctionExpr*>(expr)->children().size() << std::endl;
-               std::cout << "ctype: " << (int)dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() << std::endl;
+               // std::cout << "type: " << (int)expr->type() << std::endl;
+               // std::cout << "size: " << dynamic_cast<ConjunctionExpr*>(expr)->children().size() << std::endl;
+               // std::cout << "ctype: " << (int)dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() << std::endl;
             LOG_ERROR("Only support conjunction 'and' in having.");
             return -1;
           }
           const auto comp_expr = dynamic_cast<ComparisonExpr*>(dynamic_cast<ConjunctionExpr*>(expr)->children()[0].get());
           if (comp_expr->left()->type() == ExprType::FUNC) {
             // 将聚集条件拆分成FieldExpr放入order
-            std::cout << "left" << std::endl;
+            // std::cout << "left" << std::endl;
             auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(comp_expr->left().get())->child().get())->get_node();
             $$->selection.group.emplace_back(new FieldExpr(tmp));
           }
           if (comp_expr->right()->type() == ExprType::FUNC) {
             // 将聚集条件拆分成FieldExpr放入order
-            std::cout << "ritht" << std::endl;
+            // std::cout << "ritht" << std::endl;
             auto tmp = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(comp_expr->right().get())->child().get())->get_node();
             $$->selection.group.emplace_back(new FieldExpr(tmp));
           }

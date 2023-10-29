@@ -46,7 +46,7 @@ RC OrderPhysicalOperator::close() {
 
 RC OrderPhysicalOperator::collect_tuple_value(Tuple *tuple) {
   if (!tuple) {
-    return RC::INTERNAL;
+    return RC::RECORD_EOF;
   }
 
   std::vector<Value> record;
@@ -69,11 +69,11 @@ RC OrderPhysicalOperator::collect_tuple_value(Tuple *tuple) {
 RC OrderPhysicalOperator::get_all_tuple() {
   RC rc = RC::SUCCESS;
   while (!children_.empty() && RC::SUCCESS == (rc = children_[0]->next())) {
-    collect_tuple_value(current_tuple_norm());
-  }
-  if (rc != RC::RECORD_EOF) {
-    LOG_WARN("failed to get current record: %s", strrc(rc));
-    return rc;
+    rc = collect_tuple_value(current_tuple_norm());
+    if (OB_FAIL(rc) && rc != RC::RECORD_EOF) {
+      LOG_WARN("failed to get current record: %s", strrc(rc));
+      return rc;
+    }
   }
   return sort();
 }

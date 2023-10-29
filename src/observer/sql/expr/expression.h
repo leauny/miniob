@@ -186,6 +186,8 @@ private:
 class ValueExpr : public Expression 
 {
 public:
+  ValueExpr() = default;
+
   explicit ValueExpr(const Value &value, const std::string &name = {}, const std::string &alias = {})
       : value_(value), Expression(name, alias) {}
 
@@ -199,6 +201,8 @@ public:
   AttrType value_type() const override { return value_.attr_type(); }
 
   void get_value(Value &value) const { value = value_; }
+
+  void set_value(Value value) { value_ = value; }
 
   const Value &get_value() const { return value_; }
 
