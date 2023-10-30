@@ -18,6 +18,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/clog/clog.h"
 #include "storage/db/db.h"
 #include "storage/clog/clog.h"
+#include "sql/expr/expression.h"
+
+class ValueExpr;
 
 using namespace std;
 
@@ -191,29 +194,38 @@ RC MvccTrx::update_record(Table *table, const std::vector<std::pair<Expression*,
   Field end_field;
   trx_fields(table, begin_field, end_field);
 
-  [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
-  /// 在更新之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
-  ASSERT(end_xid > 0, "concurrency conflit: other transaction is updating this record. end_xid=%d, current trx id=%d, rid=%s",
-      end_xid, trx_id_, record.rid().to_string().c_str());
-  if (end_xid != trx_kit_.max_trx_id()) {
-    // 当前不是多版本数据中的最新记录，不需要删除
-    return RC::SUCCESS;
+  // 检查事务是否有权限访问记录
+  RC rc = visit_record(table, record, false);
+  if (rc != RC::SUCCESS) {
+    return rc;
   }
 
-  end_field.set_int(record, -trx_id_);
+  // 设置新版本记录的事务信息
+  Record new_record = record;
+  for (auto& [expr, offset] : expressions_and_offsets) {
+    const Value value = dynamic_cast<ValueExpr*>(expr)->get_value();
+    memcpy(new_record.data() + offset, value.data(), value.length());
+  }
+  begin_field.set_int(new_record, -trx_id_);
+  end_field.set_int(new_record, trx_kit_.max_trx_id());
 
-  RC rc = table->update_record(expressions_and_offsets, record);
+  // 将旧版本的记录标记为不可见
+  end_field.set_int(record, -trx_id_);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to update record into table. rc=%s", strrc(rc));
     return rc;
   }
 
-//  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), record.len(),
-//      expressions_and_offsets[0].second, expressions_and_offsets[0].first));
+  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), new_record.rid(), new_record.len(), 0, new_record.data());
   ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
-      trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
+      trx_id_, table->table_id(), new_record.rid().to_string().c_str(), data_len, strrc(rc));
+  rc = log_manager_->append_log(CLogType::UPDATE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
+  ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
+      trx_id_, table->table_id(), record.rid().to_string().c_str(), data_len, strrc(rc));
 
-  operations_.insert(Operation(Operation::Type::UPDATE, table, record.rid()));
+  // 将操作添加到事务的操作集合中
+  operations_.insert(Operation(Operation::Type::UPDATE_I, table, new_record.rid()));
+  operations_.insert(Operation(Operation::Type::UPDATE_D, table, record.rid()));
 
   return RC::SUCCESS;
 }
@@ -298,7 +310,8 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
   
   for (const Operation &operation : operations_) {
     switch (operation.type()) {
-      case Operation::Type::INSERT: {
+      case Operation::Type::INSERT:
+      case Operation::Type::UPDATE_I: {
         RID rid(operation.page_num(), operation.slot_num());
         Table *table = operation.table();
         Field begin_xid_field, end_xid_field;
@@ -319,7 +332,8 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
                rid.to_string().c_str(), strrc(rc));
       } break;
 
-      case Operation::Type::DELETE: {
+      case Operation::Type::DELETE:
+      case Operation::Type::UPDATE_D:{
         Table *table = operation.table();
         RID rid(operation.page_num(), operation.slot_num());
         
