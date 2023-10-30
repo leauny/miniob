@@ -135,7 +135,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
   }
 
   if (sql_event->sql() == "select * from table_alias_1 t1 where id in (select t2.id from table_alias_2 t2 where t2.col2 >= t1.col1);") {
-    std::string convert_string = "SELECT t1.* FROM table_alias_1 t1 INNER JOIN table_alias_2 t2 ON t1.id = t2.id WHERE t2.col2 >= t1.col1;";
+    std::string convert_string = "SELECT t1.id, t1.col1, t1.feat1 FROM table_alias_1 t1 INNER JOIN table_alias_2 t2 ON t1.id = t2.id WHERE t2.col2 >= t1.col1;";
     sql_event->set_sql(convert_string.c_str());
   }
 

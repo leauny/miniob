@@ -1489,6 +1489,26 @@ join_stmt:
       $$->emplace_back(join);
       free($2);
     }
+    | INNER_JOIN ID alias ON condition_list {
+      $$ = new std::vector<JoinSqlNode>;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($2, $3);
+      join.conditions.swap(*$5);
+      $$->emplace_back(join);
+      free($2);
+    }
+    | INNER_JOIN ID alias ON condition_list join_stmt {
+      if ($6 != nullptr) {
+        $$ = $6;
+      } else {
+        $$ = new std::vector<JoinSqlNode>;
+      }
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($2, $3);
+      join.conditions.swap(*$5);
+      $$->emplace_back(join);
+      free($2);
+    }
     ;
 
 calc_stmt:
