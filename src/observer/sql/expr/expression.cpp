@@ -603,6 +603,7 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
       query_value_ = new Value();
       query_value_->set_null();
     } else if (subquery_result.size() > 1) {
+      operator_->close();
       LOG_TRACE("subquery result is not a single value");
       return RC::INTERNAL;
     } else {
@@ -624,6 +625,7 @@ RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
       Tuple* t = operator_->current_tuple();
       int cell_num = t->cell_num();
       if (cell_num > 1) {
+        operator_->close();
         LOG_TRACE("subquery a tuple result is not a single value");
         return RC::INTERNAL;
       }
