@@ -902,6 +902,13 @@ attr_list:
       $$ = new std::vector<Expression*>;
       $$->emplace_back(new StarExpr("*"));
     }
+    | ID DOT '*' {
+      $$ = new std::vector<Expression*>;
+      auto tmp = new StarExpr("*");
+      tmp->set_table_name($1);
+      $$->emplace_back(tmp);
+      free($1);
+    }
     | expression {
       $$ = new std::vector<Expression*>;
       $$->emplace_back($1);

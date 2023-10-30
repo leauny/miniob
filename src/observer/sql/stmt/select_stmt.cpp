@@ -153,11 +153,23 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     switch (relation_attr->type()) {
       case ExprType::STAR: {
         has_attr = true;
+        auto star_expr = dynamic_cast<StarExpr *>(relation_attr);
         // 反向添加，避免后期join时的顺序错误
-        for (int index = tables.size() - 1; index >= 0; --index) {
-          wildcard_fields(tables[index], query_expressions, tables.size() != 1);
+        if (star_expr->table_name().empty()) {
+          for (int index = tables.size() - 1; index >= 0; --index) {
+            wildcard_fields(tables[index], query_expressions, tables.size() != 1);
+            // 处理order by的表达式
+            wildcard_fields(tables[index], order_expr, tables.size() != 1);
+          }
+        } else {
+          auto table = table_map[star_expr->table_name()];
+          if (nullptr == table) {
+            LOG_WARN("no such table. table_name=%s", star_expr->table_name().c_str());
+            return RC::SCHEMA_TABLE_NOT_EXIST;
+          }
+          wildcard_fields(table, query_expressions, tables.size() != 1);
           // 处理order by的表达式
-          wildcard_fields(tables[index], order_expr, tables.size() != 1);
+          wildcard_fields(table, order_expr, tables.size() != 1);
         }
       } break;
       case ExprType::FIELD:
