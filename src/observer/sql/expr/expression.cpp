@@ -365,7 +365,8 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
       dynamic_cast<SubQueryExpr*>(right_.get())->get_subquery_type() == SubQueryType::LIST_VALUE) {
     ValueListTuple value_list;
     auto* subquery = dynamic_cast<SubQueryExpr*>(right_.get());
-    subquery->list_get_value(value_list);
+    rc = subquery->list_get_value(value_list);
+    if (OB_FAIL(rc)) { return rc; }
     rc = value_list.find(left_value, comp_);
     if (rc == RC::SUCCESS) {
       value.set_boolean(true);
@@ -378,11 +379,11 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
       return rc;
     }
 
-    if (((left_->type() == ExprType::SUBQUERY && left_value.attr_type() == NULLS) ||
-            (right_->type() == ExprType::SUBQUERY && right_value.attr_type() == NULLS))
-        && (comp_ != CompOp::IS_NULL || comp_ != CompOp::IS_NOT_NULL)) {
-      return RC::INTERNAL;
-    }
+//    if (((left_->type() == ExprType::SUBQUERY && left_value.attr_type() == NULLS) ||
+//            (right_->type() == ExprType::SUBQUERY && right_value.attr_type() == NULLS))
+//        && (comp_ != CompOp::IS_NULL || comp_ != CompOp::IS_NOT_NULL)) {
+//      return RC::INTERNAL;
+//    }
 
     bool bool_value = false;
     rc = compare_value(left_value, right_value, bool_value);
@@ -622,11 +623,13 @@ RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
     while (RC::SUCCESS == operator_->next()) {
       Tuple* t = operator_->current_tuple();
       int cell_num = t->cell_num();
-      for (int i = 0; i < cell_num; i++) {
-        Value value;
-        t->cell_at(i, value);
-        list_tuple_->add_value(value);
+      if (cell_num > 1) {
+        LOG_TRACE("subquery a tuple result is not a single value");
+        return RC::INTERNAL;
       }
+      Value tmp_value;
+      t->cell_at(0, tmp_value);
+      list_tuple_->add_value(tmp_value);
     }
     operator_->close();
   }
