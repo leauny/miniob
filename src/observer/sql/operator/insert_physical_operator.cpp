@@ -36,7 +36,11 @@ RC InsertPhysicalOperator::open(Trx *trx)
     }
 
     rc = child->next();
-    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
+    if (rc != RC::SUCCESS) {
+      // 避免select无内容
+      if (rc == RC::RECORD_EOF) {
+        rc = RC::SUCCESS;
+      }
       return rc;
     }
 

@@ -17,6 +17,54 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "event/sql_debug.h"
 
+RC get_attr_type(AttrInfoSqlNode &attr_info, Expression *expr) {
+  auto rc = RC::SUCCESS;
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      auto ptr = dynamic_cast<const FieldExpr*>(expr);
+      attr_info.name = expr->alias().empty() ? expr->name() : expr->alias();
+      attr_info.type = ptr->field().meta()->type();
+      attr_info.nullable = ptr->field().meta()->nullable();
+      attr_info.length = ptr->field().meta()->len();
+      return RC::SUCCESS;
+    } break;
+    case ExprType::CAST: {
+      auto ptr = dynamic_cast<CastExpr*>(expr);
+      rc = get_attr_type(attr_info, ptr->child().get());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::COMPARISON: {
+      auto ptr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = get_attr_type(attr_info, ptr->left().get());
+      if (OB_SUCC(rc)) { return rc; }
+      rc = get_attr_type(attr_info, ptr->right().get());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::CONJUNCTION: {
+      auto ptr = dynamic_cast<ConjunctionExpr*>(expr);
+      for (auto &e : ptr->children()) {
+        rc = get_attr_type(attr_info, e.get());
+        if (OB_SUCC(rc)) { return rc; }
+      }
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto ptr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = get_attr_type(attr_info, ptr->left().get());
+      if (OB_SUCC(rc)) { return rc; }
+      rc = get_attr_type(attr_info, ptr->right().get());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    case ExprType::FUNC: {
+      auto ptr = dynamic_cast<FuncExpr*>(expr);
+      rc = get_attr_type(attr_info, ptr->child().get());
+      if (OB_SUCC(rc)) { return rc; }
+    } break;
+    default:
+      LOG_INFO("Unsupported type %d.", expr->type());
+  }
+  return RC::INTERNAL;
+}
+
 RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt)
 {
   const auto *attr_infos = &create_table.attr_infos;
@@ -35,16 +83,12 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       }
     }
     for (auto i = 0; i < exprs.size(); ++i) {
-      if (exprs[i]->type() != ExprType::FIELD) {
-        LOG_ERROR("Unsupported attr type %d in create-table-select stmt", exprs[i]->type());
-        return RC::UNIMPLENMENT;
-      }
-      const auto ptr = dynamic_cast<FieldExpr*>(exprs[i].get());
       AttrInfoSqlNode attr_info;
-      attr_info.name = ptr->field().meta()->name();
-      attr_info.type = ptr->field().meta()->type();
-      attr_info.length = ptr->field().meta()->len();
-      attr_info.nullable = ptr->field().meta()->nullable();
+      rc = get_attr_type(attr_info, exprs[i].get());
+      if (OB_FAIL(rc)) { return rc; }
+      if (!exprs[i]->alias().empty()) {
+        attr_info.name = exprs[i]->alias();
+      }
       if (have_field) {
         auto attr = attr_infos->at(i);
         if (attr_info.type == attr.type &&

@@ -1019,7 +1019,7 @@ rel_attr:
       free($1);
       free($3);
     }
-    | AGG LBRACE '*' RBRACE {
+    | AGG '*' RBRACE {
       $$ = new RelAttrSqlNode;
       $$->relation_name  = "";
       $$->attribute_name = "*";
@@ -1029,8 +1029,8 @@ rel_attr:
       }
       $$->func_type = FUNC_WCOUNT;  // 通配符版本的count
     }
-    | AGG LBRACE rel_attr RBRACE {
-      $$ = $3;
+    | AGG rel_attr RBRACE {
+      $$ = $2;
       $$->func_type = $1;
     }
     | LENGTH LBRACE rel_attr RBRACE {
