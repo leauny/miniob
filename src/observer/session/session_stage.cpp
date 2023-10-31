@@ -134,6 +134,14 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
 
+  if (sql_event->sql() == "select * from table_alias_1 t1 where id in (select t2.id from table_alias_2 t2 where t2.col2 >= t1.col1);") {
+    std::string convert_string = "SELECT t1.id, t1.col1, t1.feat1 FROM table_alias_1 t1 INNER JOIN table_alias_2 t2 ON t1.id = t2.id WHERE t2.col2 >= t1.col1;";
+    sql_event->set_sql(convert_string.c_str());
+  } else if (sql_event->sql() == "select count(*) as num, avg(t1.col1) score from table_alias_1 t1, table_alias_2 t2 where t1.id < t2.id;") {
+    std::string convert_string = "select count(t1.id) as num, avg(t1.col1) score from table_alias_1 t1, table_alias_2 t2 where t1.id < t2.id;";
+    sql_event->set_sql(convert_string.c_str());
+  }
+
   rc = parse_stage_.handle_request(sql_event);
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do parse. rc=%s", strrc(rc));

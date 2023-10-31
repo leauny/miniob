@@ -122,6 +122,11 @@ public:
   RC get_value(const Tuple *tuple, Value &value) override { return RC::UNIMPLENMENT; }
   ExprType type() const override { return ExprType::STAR; }
   AttrType value_type() const override { return AttrType::UNDEFINED; }
+  void set_table_name(const std::string &table_name) { table_name_ = table_name; }
+  std::string &table_name() { return table_name_; }
+
+private:
+  std::string table_name_;
 };
 
 /**

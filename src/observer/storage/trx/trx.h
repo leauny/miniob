@@ -50,7 +50,8 @@ public:
   enum class Type : int 
   {
     INSERT,
-    UPDATE,
+    UPDATE_I,
+    UPDATE_D,
     DELETE,
     UNDEFINED,
   };

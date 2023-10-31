@@ -914,6 +914,13 @@ attr_list:
       $$ = new std::vector<Expression*>;
       $$->emplace_back(new StarExpr("*"));
     }
+    | ID DOT '*' {
+      $$ = new std::vector<Expression*>;
+      auto tmp = new StarExpr("*");
+      tmp->set_table_name($1);
+      $$->emplace_back(tmp);
+      free($1);
+    }
     | expression {
       $$ = new std::vector<Expression*>;
       $$->emplace_back($1);
@@ -1498,6 +1505,26 @@ join_stmt:
       JoinSqlNode join;
       join.relation_name = new TableExpr($2);
       join.conditions.swap(*$4);
+      $$->emplace_back(join);
+      free($2);
+    }
+    | INNER_JOIN ID alias ON condition_list {
+      $$ = new std::vector<JoinSqlNode>;
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($2, $3);
+      join.conditions.swap(*$5);
+      $$->emplace_back(join);
+      free($2);
+    }
+    | INNER_JOIN ID alias ON condition_list join_stmt {
+      if ($6 != nullptr) {
+        $$ = $6;
+      } else {
+        $$ = new std::vector<JoinSqlNode>;
+      }
+      JoinSqlNode join;
+      join.relation_name = new TableExpr($2, $3);
+      join.conditions.swap(*$5);
       $$->emplace_back(join);
       free($2);
     }
