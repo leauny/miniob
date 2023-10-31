@@ -47,7 +47,9 @@ public:
   }
 
   void set_operator(std::unique_ptr<PhysicalOperator> oper);
-  
+
+  std::unique_ptr<PhysicalOperator>& get_operator() { return operator_; }
+
   bool has_operator() const
   {
     return operator_ != nullptr;

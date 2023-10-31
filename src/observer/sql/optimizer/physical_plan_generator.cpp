@@ -222,10 +222,40 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &logic_oper, unique
 
 RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique_ptr<PhysicalOperator> &oper)
 {
-  Table *table = insert_oper.table();
-  vector<vector<Value> > &values = insert_oper.values();
-  auto *insert_phy_oper = new InsertPhysicalOperator(table, std::move(values));
-  oper.reset(insert_phy_oper);
+  if (insert_oper.children().empty()) {
+    // 普通insert
+    Table *table = insert_oper.table();
+    vector<vector<Value>> &values = insert_oper.values();
+    auto *insert_phy_oper = new InsertPhysicalOperator(table, std::move(values));
+    oper.reset(insert_phy_oper);
+  } else {
+    // create-select
+
+    vector<unique_ptr<LogicalOperator>> &child_opers = insert_oper.children();
+
+    unique_ptr<PhysicalOperator> child_phy_oper;
+
+    RC rc = RC::SUCCESS;
+    if (!child_opers.empty()) {
+      LogicalOperator *child_oper = child_opers.front().get();
+      rc = create(*child_oper, child_phy_oper);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create project logical operator's child physical operator. rc=%s", strrc(rc));
+        return rc;
+      }
+    } else {
+      LOG_ERROR("No child operator.");
+      return RC::INTERNAL;
+    }
+
+    auto *insert_phy_oper = new InsertPhysicalOperator();
+
+    if (child_phy_oper) {
+      insert_phy_oper->add_child(std::move(child_phy_oper));
+    }
+
+    oper.reset(insert_phy_oper);
+  }
   return RC::SUCCESS;
 }
 

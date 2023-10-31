@@ -26,6 +26,7 @@ See the Mulan PSL v2 for more details. */
 class InsertLogicalOperator : public LogicalOperator
 {
 public:
+  InsertLogicalOperator() = default;
   InsertLogicalOperator(Table *table, std::vector<std::vector<Value>> values);
   ~InsertLogicalOperator() override = default;
 

@@ -50,5 +50,6 @@ public:
 
 private:
   Table *table_ = nullptr;
+
   const std::vector<std::vector<Value>> *values_ = nullptr;
 };

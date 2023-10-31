@@ -36,6 +36,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/delete_stmt.h"
 #include "sql/stmt/explain_stmt.h"
 #include "sql/stmt/update_stmt.h"
+#include "sql/stmt/create_table_stmt.h"
 
 using namespace std;
 
@@ -67,6 +68,23 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
       ExplainStmt *explain_stmt = static_cast<ExplainStmt *>(stmt);
       rc = create_plan(explain_stmt, logical_operator);
     } break;
+
+    case StmtType::CREATE_TABLE: {
+      // 判断建表类型，如果是create-table-select就创建insert计划包裹select计划
+      CreateTableStmt *create_stmt = static_cast<CreateTableStmt *>(stmt);
+      if (!create_stmt->is_create_select()) {
+        rc = RC::UNIMPLENMENT;
+        break;
+      }
+      unique_ptr<LogicalOperator> select_oper;
+      rc = create_plan((SelectStmt*)create_stmt->select_stmt(), select_oper);
+      if (OB_FAIL(rc)) { break; }
+      rc = create_plan((InsertStmt*)nullptr, logical_operator);
+      if (OB_FAIL(rc)) { break; }
+      // 将select添加到insert下
+      logical_operator->add_child(std::move(select_oper));
+    } break;
+
     case StmtType::UPDATE: {
       UpdateStmt *update_stmt = static_cast<UpdateStmt *>(stmt);
       rc = create_plan(update_stmt, logical_operator);
@@ -275,10 +293,18 @@ RC LogicalPlanGenerator::create_plan(
 RC LogicalPlanGenerator::create_plan(
     InsertStmt *insert_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  Table *table = insert_stmt->table();
-  vector<vector<Value>> values(std::move(*insert_stmt->values()));
+  InsertLogicalOperator *insert_operator = nullptr;
 
-  InsertLogicalOperator *insert_operator = new InsertLogicalOperator(table, values);
+  if (!insert_stmt) {
+    // 用于create-select
+    insert_operator = new InsertLogicalOperator();
+  } else {
+    // 普通insert
+    Table *table = insert_stmt->table();
+    vector<vector<Value>> values(std::move(*insert_stmt->values()));
+    insert_operator = new InsertLogicalOperator(table, values);
+  }
+
   logical_operator.reset(insert_operator);
   return RC::SUCCESS;
 }

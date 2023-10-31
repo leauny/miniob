@@ -411,6 +411,8 @@ public:
 
   explicit ValueListTuple(std::vector<Value>& value_list) : cells_(value_list) {};
 
+  explicit ValueListTuple(std::vector<Value>&& value_list) : cells_(value_list) {};
+
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override { return RC::UNIMPLENMENT; }
 
   void set_cells(const std::vector<Value> &cells)
@@ -450,6 +452,8 @@ public:
   }
 
   int size() const { return cells_.size(); }
+
+  const std::vector<Value> & cells() const { return cells_; }
 
   RC find(Value &cell, CompOp comp)
   {

@@ -37,7 +37,10 @@ RC ExecuteStage::handle_request(SQLStageEvent *sql_event)
   RC rc = RC::SUCCESS;
   const unique_ptr<PhysicalOperator> &physical_operator = sql_event->physical_operator();
   if (physical_operator != nullptr) {
-    return handle_request_with_physical_operator(sql_event);
+    rc = handle_request_with_physical_operator(sql_event);
+    if (rc != RC::CONTINUE) {
+      return rc;
+    }
   }
 
   SessionEvent *session_event = sql_event->session_event();
@@ -46,7 +49,11 @@ RC ExecuteStage::handle_request(SQLStageEvent *sql_event)
   if (stmt != nullptr) {
     CommandExecutor command_executor;
     rc = command_executor.execute(sql_event);
-    session_event->sql_result()->set_return_code(rc);
+    if (rc != RC::CONTINUE) {
+      session_event->sql_result()->set_return_code(rc);
+    } else {
+      rc = RC::SUCCESS;
+    }
   } else {
     return RC::INTERNAL;
   }
@@ -88,6 +95,12 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
           schema.append_cell(tuple->name_at(i).c_str());
         }
       }
+    } break;
+
+    case StmtType::CREATE_TABLE: {
+      // create-table-select才会走到这个地方
+      // 返回RC::CONTINUE让handle_request继续执行
+      rc = RC::CONTINUE;
     } break;
 
     case StmtType::EXPLAIN: {

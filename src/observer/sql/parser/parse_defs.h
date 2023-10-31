@@ -220,6 +220,7 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;  ///< Relation name
   std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
+  struct SelectSqlNode *select_node{nullptr};  ///< create-select
 };
 
 /**
@@ -400,6 +401,8 @@ public:
     set_variable = other.set_variable;
   }
   explicit ParsedSqlNode(SqlCommandFlag flag);
+
+  void set_flag(SqlCommandFlag f) { flag = f; }
 };
 
 /**

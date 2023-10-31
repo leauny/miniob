@@ -20,15 +20,46 @@ See the Mulan PSL v2 for more details. */
 using namespace std;
 
 InsertPhysicalOperator::InsertPhysicalOperator(Table *table, vector<std::vector<Value>> &&values)
-    : table_(table), values_(std::move(values))
-{}
+    : table_(table) { for (auto &n : values) { values_.emplace_back(std::move(n)); } }
 
 RC InsertPhysicalOperator::open(Trx *trx)
 {
-  RC rc = RC::SUCCESS;
+  auto rc = RC::SUCCESS;
+
+  // 收集select的结果
+  if (!children().empty() && values_.empty()) {
+    PhysicalOperator *child = children_[0].get();
+    rc = child->open(trx);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to open child operator: %s", strrc(rc));
+      return rc;
+    }
+
+    rc = child->next();
+    if (rc != RC::SUCCESS && rc != RC::RECORD_EOF) {
+      return rc;
+    }
+
+    do {
+      auto tuple = current_tuple_norm();
+      if (!tuple) { break; }
+      int cell_num = tuple->cell_num();
+      std::vector<Value> values;
+      for (int i = 0; i < cell_num; i++) {
+        Value value;
+        rc = tuple->cell_at(i, value);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        values.emplace_back(value);
+      }
+      values_.emplace_back(values);  // 存入select到的结果
+    } while (!children_.empty() && RC::SUCCESS == children_[0]->next());;
+  }
+
   for (const auto &value : values_) {
     Record record;
-    rc = table_->make_record(static_cast<int>(value.size()), value.data(), record);
+    rc = table_->make_record(static_cast<int>(value.size()), value.cells().data(), record);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to make record. rc=%s", strrc(rc));
       return rc;

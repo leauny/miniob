@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/sql_event.h"
 #include "event/session_event.h"
 #include "storage/db/db.h"
+#include "sql/operator/insert_physical_operator.h"
 
 RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
 {
@@ -35,6 +36,27 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
 
   const char *table_name = create_table_stmt->table_name().c_str();
   RC rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
+
+  if (OB_FAIL(rc)) { return rc; }
+
+  Table *table = session->get_current_db()->find_table(create_table_stmt->table_name().c_str());
+
+  if (!table) {
+    LOG_ERROR("Unable to find table %s.", create_table_stmt->table_name().c_str());
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  if (create_table_stmt->is_create_select()) {
+    auto &phy_oper = sql_event->session_event()->sql_result()->get_operator();
+    ASSERT(phy_oper, "No phy oper.");
+    if (phy_oper->type() != PhysicalOperatorType::INSERT) {
+      return rc;
+    }
+    // 设置operator的table指针
+    auto oper = dynamic_cast<InsertPhysicalOperator*>(phy_oper.get());
+    oper->set_table(table);
+    rc = RC::CONTINUE;
+  }
 
   return rc;
 }
