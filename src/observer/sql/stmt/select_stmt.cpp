@@ -74,7 +74,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
 
     tables.push_back(table);
-    if (table_map.count(table_alias) > 0) {
+    if (table_map.count(table_alias) > 1) {
       LOG_WARN("duplicate table alias. table_alias=%s", table_alias.c_str());
       return RC::SCHEMA_TABLE_ALIAS_DUPLICATE;
     }
