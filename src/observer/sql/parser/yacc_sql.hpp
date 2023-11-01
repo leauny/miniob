@@ -85,47 +85,48 @@ extern int yydebug;
     STRING_T = 286,                /* STRING_T  */
     FLOAT_T = 287,                 /* FLOAT_T  */
     DATE_T = 288,                  /* DATE_T  */
-    HELP = 289,                    /* HELP  */
-    EXIT = 290,                    /* EXIT  */
-    DOT = 291,                     /* DOT  */
-    INTO = 292,                    /* INTO  */
-    VALUES = 293,                  /* VALUES  */
-    FROM = 294,                    /* FROM  */
-    WHERE = 295,                   /* WHERE  */
-    AND = 296,                     /* AND  */
-    OR = 297,                      /* OR  */
-    SET = 298,                     /* SET  */
-    ON = 299,                      /* ON  */
-    AS = 300,                      /* AS  */
-    LOAD = 301,                    /* LOAD  */
-    DATA = 302,                    /* DATA  */
-    INFILE = 303,                  /* INFILE  */
-    EXPLAIN = 304,                 /* EXPLAIN  */
-    LENGTH = 305,                  /* LENGTH  */
-    ROUND = 306,                   /* ROUND  */
-    DATE_FORMAT = 307,             /* DATE_FORMAT  */
-    EQ = 308,                      /* EQ  */
-    LT = 309,                      /* LT  */
-    GT = 310,                      /* GT  */
-    LE = 311,                      /* LE  */
-    GE = 312,                      /* GE  */
-    NE = 313,                      /* NE  */
-    LIKE = 314,                    /* LIKE  */
-    NOT_LIKE = 315,                /* NOT_LIKE  */
-    INNER_JOIN = 316,              /* INNER_JOIN  */
-    NULL_T = 317,                  /* NULL_T  */
-    NOT_NULL = 318,                /* NOT_NULL  */
-    IS = 319,                      /* IS  */
-    IS_NOT = 320,                  /* IS_NOT  */
-    UNIQUE = 321,                  /* UNIQUE  */
-    IN_ = 322,                     /* IN_  */
-    NOT_IN_ = 323,                 /* NOT_IN_  */
-    EXISTS = 324,                  /* EXISTS  */
-    NOT_EXISTS = 325,              /* NOT_EXISTS  */
-    GROUP_BY = 326,                /* GROUP_BY  */
-    ORDER_BY = 327,                /* ORDER_BY  */
-    HAVING = 328,                  /* HAVING  */
-    UMINUS = 329                   /* UMINUS  */
+    TEXT_T = 289,                  /* TEXT_T  */
+    HELP = 290,                    /* HELP  */
+    EXIT = 291,                    /* EXIT  */
+    DOT = 292,                     /* DOT  */
+    INTO = 293,                    /* INTO  */
+    VALUES = 294,                  /* VALUES  */
+    FROM = 295,                    /* FROM  */
+    WHERE = 296,                   /* WHERE  */
+    AND = 297,                     /* AND  */
+    OR = 298,                      /* OR  */
+    SET = 299,                     /* SET  */
+    ON = 300,                      /* ON  */
+    AS = 301,                      /* AS  */
+    LOAD = 302,                    /* LOAD  */
+    DATA = 303,                    /* DATA  */
+    INFILE = 304,                  /* INFILE  */
+    EXPLAIN = 305,                 /* EXPLAIN  */
+    LENGTH = 306,                  /* LENGTH  */
+    ROUND = 307,                   /* ROUND  */
+    DATE_FORMAT = 308,             /* DATE_FORMAT  */
+    EQ = 309,                      /* EQ  */
+    LT = 310,                      /* LT  */
+    GT = 311,                      /* GT  */
+    LE = 312,                      /* LE  */
+    GE = 313,                      /* GE  */
+    NE = 314,                      /* NE  */
+    LIKE = 315,                    /* LIKE  */
+    NOT_LIKE = 316,                /* NOT_LIKE  */
+    INNER_JOIN = 317,              /* INNER_JOIN  */
+    NULL_T = 318,                  /* NULL_T  */
+    NOT_NULL = 319,                /* NOT_NULL  */
+    IS = 320,                      /* IS  */
+    IS_NOT = 321,                  /* IS_NOT  */
+    UNIQUE = 322,                  /* UNIQUE  */
+    IN_ = 323,                     /* IN_  */
+    NOT_IN_ = 324,                 /* NOT_IN_  */
+    EXISTS = 325,                  /* EXISTS  */
+    NOT_EXISTS = 326,              /* NOT_EXISTS  */
+    GROUP_BY = 327,                /* GROUP_BY  */
+    ORDER_BY = 328,                /* ORDER_BY  */
+    HAVING = 329,                  /* HAVING  */
+    UMINUS = 330                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -159,7 +160,7 @@ union YYSTYPE
   date                                          dates;
   bool                                          bools;
 
-#line 163 "yacc_sql.hpp"
+#line 164 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

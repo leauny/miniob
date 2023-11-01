@@ -25,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field_meta.h"
 
 class FielsdMeta;
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls","floats",  "booleans" };
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls", "texts", "floats", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -44,33 +44,17 @@ AttrType attr_type_from_string(const char *s)
   return UNDEFINED;
 }
 
-Value::Value(int val)
-{
-  set_int(val);
-}
+Value::Value(int val) { set_int(val); }
 
-Value::Value(float val)
-{
-  set_float(val);
-}
+Value::Value(float val) { set_float(val); }
 
-Value::Value(bool val)
-{
-  set_boolean(val);
-}
+Value::Value(bool val) { set_boolean(val); }
 
-Value::Value(const char *s, int len /*= 0*/)
-{
-  set_string(s, len);
-}
+Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
-Value::Value(date val) {
-  set_date(val);
-}
+Value::Value(date val) { set_date(val); }
 
-Value::Value(date val, std::string date_format) {
-  set_date(val, date_format);
-}
+Value::Value(date val, std::string date_format) { set_date(val, date_format); }
 
 void Value::set_data(char *data, int length)
 {
@@ -78,21 +62,24 @@ void Value::set_data(char *data, int length)
     case CHARS: {
       set_string(data, length);
     } break;
+    case TEXTS: {
+      set_string(data,length);
+    } break;
     case INTS: {
       num_value_.int_value_ = *(int *)data;
-      length_ = length;
+      length_               = length;
     } break;
     case FLOATS: {
       num_value_.float_value_ = *(float *)data;
-      length_ = length;
+      length_                 = length;
     } break;
     case BOOLEANS: {
       num_value_.bool_value_ = *(int *)data != 0;
-      length_ = length;
+      length_                = length;
     } break;
     case DATES: {
       date_value_ = string_to_date(data, length);
-      length_ = length;
+      length_     = length;
     } break;
     case NULLS: {
       length_ = length;
@@ -104,31 +91,31 @@ void Value::set_data(char *data, int length)
 }
 void Value::set_int(int val)
 {
-  attr_type_ = INTS;
+  attr_type_            = INTS;
   num_value_.int_value_ = val;
-  length_ = sizeof(val);
+  length_               = sizeof(val);
 }
 
 void Value::set_float(float val)
 {
-  attr_type_ = FLOATS;
+  attr_type_              = FLOATS;
   num_value_.float_value_ = val;
-  length_ = sizeof(val);
+  length_                 = sizeof(val);
 }
 
 void Value::set_float(float val, int round)
 {
-  attr_type_ = FLOATS;
+  attr_type_              = FLOATS;
   num_value_.float_value_ = std::round(val * pow(10, round_)) / pow(10, round_);
-  round_ = round;
-  length_ = sizeof(val);
+  round_                  = round;
+  length_                 = sizeof(val);
 }
 
 void Value::set_boolean(bool val)
 {
-  attr_type_ = BOOLEANS;
+  attr_type_             = BOOLEANS;
   num_value_.bool_value_ = val;
-  length_ = sizeof(val);
+  length_                = sizeof(val);
 }
 void Value::set_string(const char *s, int len /*= 0*/)
 {
@@ -143,9 +130,9 @@ void Value::set_string(const char *s, int len /*= 0*/)
 }
 void Value::set_date(std::chrono::year_month_day val)
 {
-  attr_type_ = DATES;
+  attr_type_  = DATES;
   date_value_ = val;
-  length_ = strlen(date_to_string(date_value_));
+  length_     = strlen(date_to_string(date_value_));
 }
 
 void Value::set_null()
@@ -154,11 +141,12 @@ void Value::set_null()
   length_    = 4;
 }
 
-void Value::set_date(date val, std::string date_format) {
-  attr_type_ = DATES;
-  date_value_ = val;
+void Value::set_date(date val, std::string date_format)
+{
+  attr_type_   = DATES;
+  date_value_  = val;
   date_format_ = date_format;
-  length_ = strlen(date_to_string(date_value_));
+  length_      = strlen(date_to_string(date_value_));
 }
 
 void Value::set_value(const Value &value)
@@ -229,6 +217,9 @@ std::string Value::to_string() const
     case CHARS: {
       os << str_value_;
     } break;
+    case TEXTS: {
+      os << str_value_;
+    } break;
     case NULLS: {
       os << "null";
     } break;
@@ -239,13 +230,16 @@ std::string Value::to_string() const
   return os.str();
 }
 
-bool Value::is_like(const Value &other) const {
+bool Value::is_like(const Value &other) const
+{
   // 只判断CHARS
-  if (!(this->attr_type_ == other.attr_type_ && this->attr_type_ == CHARS)) { return false; }
-  std::string str = this->str_value_.c_str();
+  if (!(this->attr_type_ == other.attr_type_ && this->attr_type_ == CHARS)) {
+    return false;
+  }
+  std::string str         = this->str_value_.c_str();
   std::string old_pattern = other.str_value_.c_str();
   std::string new_pattern;
-  bool is_escape = false;
+  bool        is_escape = false;
   // 将sql的通配符转换为正则表达式的通配符
   for (char i : old_pattern) {
     switch (i) {
@@ -260,10 +254,10 @@ bool Value::is_like(const Value &other) const {
       } break;
       case '_': {
         if (is_escape) {
-            new_pattern += '_';
-            is_escape = false;
+          new_pattern += '_';
+          is_escape = false;
         } else {
-            new_pattern += '.';
+          new_pattern += '.';
         }
       } break;
       case '%': {
@@ -320,27 +314,27 @@ int Value::compare(const Value &other) const
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
-    float this_data;
+    float       this_data;
     std::string v = this->str_value_;
-    if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+    if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
       this_data = 0;
     } else {
       this_data = std::stof(v);
     }
     return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
-    float other_data;
+    float       other_data;
     std::string v = other.str_value_;
-    if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
+    if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
       other_data = 0;
     } else {
       other_data = std::stof(v);
     }
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
   } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
-    float this_data;
+    float       this_data;
     std::string v = this->str_value_;
-    if(!('0' <= v[0] && v[0] <= '9')) {
+    if (!('0' <= v[0] && v[0] <= '9')) {
       this_data = 0;
     } else {
       this_data = std::stof(v);
@@ -348,10 +342,10 @@ int Value::compare(const Value &other) const
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this_data, (void *)&other_data);
   } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
-    float this_data = this->num_value_.int_value_;
-    float other_data;
+    float       this_data = this->num_value_.int_value_;
+    float       other_data;
     std::string v = other.str_value_;
-    if(!('0' <= v[0] && v[0] <= '9')) {
+    if (!('0' <= v[0] && v[0] <= '9')) {
       other_data = 0;
     } else {
       other_data = std::stof(v);
@@ -422,10 +416,7 @@ float Value::get_float() const
   return 0;
 }
 
-std::string Value::get_string() const
-{
-  return this->to_string();
-}
+std::string Value::get_string() const { return this->to_string(); }
 
 bool Value::get_boolean() const
 {
@@ -456,10 +447,8 @@ bool Value::get_boolean() const
     case BOOLEANS: {
       return num_value_.bool_value_;
     } break;
-    case DATES:
-      return date_value_ != date(std::chrono::year(0), std::chrono::month(0), std::chrono::day(0));
-    case NULLS:
-      return false;
+    case DATES: return date_value_ != date(std::chrono::year(0), std::chrono::month(0), std::chrono::day(0));
+    case NULLS: return false;
     default: {
       LOG_WARN("unknown data type. type=%d", attr_type_);
       return false;
@@ -467,18 +456,16 @@ bool Value::get_boolean() const
   }
   return false;
 }
-date Value::get_date() const {
-  return this->date_value_;
-}
+date Value::get_date() const { return this->date_value_; }
 
 const char *Value::date_to_string(date val) const
 {
   std::tm time{};
   time.tm_year = static_cast<int>(val.year()) - 1900;
-  time.tm_mon = static_cast<unsigned>(val.month()) - 1;
+  time.tm_mon  = static_cast<unsigned>(val.month()) - 1;
   time.tm_mday = static_cast<unsigned>(val.day());
 
-  bool is_format = false;
+  bool        is_format = false;
   std::string format;
   for (char c : date_format_) {
     switch (c) {
@@ -488,18 +475,27 @@ const char *Value::date_to_string(date val) const
       } break;
       case 'n':
       case 'z': {
-        if (!is_format) { format += c; break;}
+        if (!is_format) {
+          format += c;
+          break;
+        }
         // n和z不识别
-        format = format.substr(0, format.size() - 1) + c;
+        format    = format.substr(0, format.size() - 1) + c;
         is_format = false;
       } break;
       case 'M': {
-        if (!is_format) { format += c; break;}
+        if (!is_format) {
+          format += c;
+          break;
+        }
         format += 'B';
         is_format = false;
       } break;
       case 'D': {
-        if (!is_format) { format += c; break;}
+        if (!is_format) {
+          format += c;
+          break;
+        }
         // c++会自动加空格，因此去除前面的%后直接写入结果
         format = format.substr(0, format.size() - 1) + std::to_string(time.tm_mday);
         if (time.tm_mday % 10 == 1 && time.tm_mday != 11) {
@@ -513,9 +509,7 @@ const char *Value::date_to_string(date val) const
         }
         is_format = false;
       } break;
-      default:
-        format += c;
-        is_format = false;
+      default: format += c; is_format = false;
     }
   }
 
@@ -524,35 +518,37 @@ const char *Value::date_to_string(date val) const
   std::string date_string = ss.str();
 
   // 分配动态内存来存储字符串，并复制字符串内容
-  char* result = new char[date_string.length() + 1];
+  char *result = new char[date_string.length() + 1];
   strcpy(result, date_string.c_str());
 
   return result;
 }
 
-date Value::string_to_date(const char * data, int length)
+date Value::string_to_date(const char *data, int length)
 {
-  char * tmp = common::substr(data, 0, length - 1);
+  char              *tmp = common::substr(data, 0, length - 1);
   std::istringstream iss(tmp);
-  char delimiter = std::string(tmp).find('-') == std::string::npos
-                                     ? '/' : '-';
-  std::string token;
+  char               delimiter = std::string(tmp).find('-') == std::string::npos ? '/' : '-';
+  std::string        token;
 
   std::getline(iss, token, delimiter);
   int year = std::stoi(token);
-  if (year / 100 == 0) { year += 2000; }
+  if (year / 100 == 0) {
+    year += 2000;
+  }
 
   std::getline(iss, token, delimiter);
   int month = std::stoi(token);
 
   std::getline(iss, token);
-  int day = std::stoi(token);
+  int                         day = std::stoi(token);
   std::chrono::year_month_day ymd{std::chrono::year(year), std::chrono::month(month), std::chrono::day(day)};
   return ymd;
 }
 std::string Value::get_date_format() const { return date_format_; }
 
-RC value_cast(const FieldMeta* field_meta, Value &value) {
+RC value_cast(const FieldMeta *field_meta, Value &value)
+{
   AttrType field_type = field_meta->type();
   AttrType value_type = value.attr_type();
   if (field_type != value_type) {
@@ -562,7 +558,7 @@ RC value_cast(const FieldMeta* field_meta, Value &value) {
       LOG_WARN("field type mismatch. field=%s, field type=%d, value_type=%d",
           field_meta->name(), field_type, value_type);
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-    } else if (field_type == CHARS) {
+    } else if (field_type == CHARS || field_type == TEXTS) {
       const char *data = value.get_string().c_str();
       value.set_string(data, strlen(data));
     } else if (field_type == INTS) {
