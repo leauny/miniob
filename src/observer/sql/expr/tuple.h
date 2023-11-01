@@ -140,7 +140,7 @@ public:
       cell_at(cell_num - 1, cell);
       str += cell.to_string();
     }
-    return str;
+    return std::move(str);
   }
 };
 
