@@ -87,7 +87,8 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       rc = get_attr_type(attr_info, exprs[i].get());
       if (OB_FAIL(rc)) { return rc; }
       if (!exprs[i]->alias().empty()) {
-        attr_info.name = exprs[i]->alias();
+        auto pos = exprs[i]->alias().find('.');
+        attr_info.name = pos == std::string::npos ? exprs[i]->alias() : exprs[i]->alias().substr(pos + 1);
       }
       if (have_field) {
         auto attr = attr_infos->at(i);
