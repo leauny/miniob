@@ -616,21 +616,11 @@ RC Table::update_record(const std::vector<std::pair<Expression*, int>>& expressi
 {
   RC rc = RC::SUCCESS;
   Record update_record = record;
-  // delete old record
-  rc = delete_record(record);
-  if (OB_FAIL(rc)) {
-    LOG_ERROR("Failed to delete old record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
-    return rc;
-  }
   for (auto& [expr, offset] : expressions_and_offsets) {
     const Value value = dynamic_cast<ValueExpr*>(expr)->get_value();
     memcpy(update_record.data() + offset, value.data(), value.length());
   }
-  rc = insert_record(update_record);
-  if (OB_FAIL(rc)) {
-    LOG_ERROR("Failed to insert new record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
-    return rc;
-  }
+  rc = record_handler_->update_record(&record.rid(),update_record.data(),table_meta_.record_size());
   return rc;
 }
 

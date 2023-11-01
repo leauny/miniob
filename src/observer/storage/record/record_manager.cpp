@@ -361,26 +361,26 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
     total_pages++;
   }
   if (total_pages > 1) {
+    lock_.lock();
+    if(free_pages_.size()%total_pages!=0){
+      LOG_ERROR("invalid the size of free_pages_, total_pages:free_pages_.size %d:%d",total_pages,free_pages_.size());
+      return RC::INVALID_ARGUMENT;
+    }
+    lock_.unlock();
     for (int i = 0; i < total_pages; i++) {
       // 当前要访问free_pages对象，所以需要加锁。在非并发编译模式下，不需要考虑这个锁
+      page_found= false;
       lock_.lock();
-
       // 找到没有填满的页面
-      if (!free_pages_.empty()) {
+      if(!free_pages_.empty()) {
         current_page_num = *free_pages_.begin();
-
+        page_found= true;
         ret = record_page_handler.init(*disk_buffer_pool_, current_page_num, false /*readonly*/);
         if (ret != RC::SUCCESS) {
           lock_.unlock();
           LOG_WARN("failed to init record page handler. page num=%d, rc=%d:%s", current_page_num, ret, strrc(ret));
           return ret;
         }
-
-        if (!record_page_handler.is_full()) {
-          page_found = true;
-          break;
-        }
-        record_page_handler.cleanup();
         free_pages_.erase(free_pages_.begin());
       }
       lock_.unlock();  // 如果找到了一个有效的页面，那么此时已经拿到了页面的写锁
@@ -405,18 +405,11 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
 
         // frame 在allocate_page的时候，是有一个pin的，在init_empty_page时又会增加一个，所以这里手动释放一个
         frame->unpin();
-
-        // 这里的加锁顺序看起来与上面是相反的，但是不会出现死锁
-        // 上面的逻辑是先加lock锁，然后加页面写锁，这里是先加上
-        // 了页面写锁，然后加lock的锁，但是不会引起死锁。
-        // 为什么？
-        if (total_pages <= 1) {
-          lock_.lock();
-          free_pages_.insert(current_page_num);
-          lock_.unlock();
-        }
       }
-
+      if(i==0&&(current_page_num-1)%total_pages!=0){
+        LOG_ERROR("invalid the start of page number for the record crossing pages");
+        return RC::INVALID_ARGUMENT;
+      }
       // insert the the last page of the data
       if (total_pages > 1 && i + 1 == total_pages) {
         char data_tmp[PAGE_MAX_RECORD_SIZE];
@@ -429,7 +422,7 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
       record_page_handler.cleanup();
       page_found = false;
       if (ret != RC::SUCCESS) {
-        LOG_ERROR("Failed to init empty page.ret:%d",ret);
+        LOG_ERROR("Failed to insert record ret:%d",ret);
         return ret;
       }
     }
@@ -492,6 +485,25 @@ RC RecordFileHandler::insert_record(const char *data, int record_size, RID *rid)
   }
 }
 
+RC RecordFileHandler::update_record(RID *rid, const char *data, int record_size )
+{
+  RC ret = RC::SUCCESS;
+  RecordPageHandler record_page_handler;
+  bool              page_found       = false;
+  PageNum           current_page_num = 0;
+  int               total_pages      = record_size / PAGE_MAX_RECORD_SIZE;
+
+  // delete old_record
+  ret=this->delete_record(rid,record_size);
+  if(ret!=RC::SUCCESS){
+    LOG_WARN("fail to delete record at page_num:slot_num  %d:%d",rid->page_num,rid->slot_num);
+    return ret;
+  }
+
+  //insert new_record
+  ret=this->insert_record(data,record_size,rid);
+  return ret;
+}
 RC RecordFileHandler::recover_insert_record(const char *data, int record_size, const RID &rid)
 {
   RC ret = RC::SUCCESS;
@@ -522,7 +534,7 @@ RC RecordFileHandler::delete_record(const RID *rid, int record_size)
     page_handler.cleanup();
     for (int i = 0; i < total_pages; i++) {
       rid_tmp.page_num = page_num_start + i;
-      if ((rc = page_handler.init(*disk_buffer_pool_, page_num_start + i, false /*readonly*/)) != RC::SUCCESS) {
+      if ((rc = page_handler.init(*disk_buffer_pool_, rid_tmp.page_num, false /*readonly*/)) != RC::SUCCESS) {
         LOG_ERROR("Failed to init record page handler.page number=%d. rc=%s", rid->page_num, strrc(rc));
         return rc;
       }

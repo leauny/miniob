@@ -282,6 +282,14 @@ public:
   RC insert_record(const char *data, int record_size, RID *rid);
 
   /**
+   * @brief update a record at rid
+   *
+   * @param data        the content of update_record
+   * @param record_size the real size of a the record
+   * @param rid         updated location
+   */
+  RC update_record(RID *rid, const char *data, int record_size = 1);
+  /**
    * @brief 数据库恢复时，在指定文件指定位置插入数据
    *
    * @param data        记录内容
