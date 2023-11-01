@@ -25,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/field/field_meta.h"
 
 class FielsdMeta;
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls","floats",  "booleans" };
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "dates", "nulls", "texts", "floats", "booleans"};
 
 const char *attr_type_to_string(AttrType type)
 {
@@ -77,6 +77,9 @@ void Value::set_data(char *data, int length)
   switch (attr_type_) {
     case CHARS: {
       set_string(data, length);
+    } break;
+    case TEXTS:{
+      set_string(data,length);
     } break;
     case INTS: {
       num_value_.int_value_ = *(int *)data;
@@ -173,6 +176,9 @@ void Value::set_value(const Value &value)
     case CHARS: {
       set_string(value.get_string().c_str());
     } break;
+    case TEXTS: {
+      set_string(value.get_string().c_str());
+    } break;
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
@@ -192,6 +198,9 @@ const char *Value::data() const
 {
   switch (attr_type_) {
     case CHARS: {
+      return str_value_.c_str();
+    } break;
+    case TEXTS:{
       return str_value_.c_str();
     } break;
     case DATES: {
@@ -227,6 +236,9 @@ std::string Value::to_string() const
       os << date_to_string(date_value_);
     } break;
     case CHARS: {
+      os << str_value_;
+    } break;
+    case TEXTS:{
       os << str_value_;
     } break;
     case NULLS: {
@@ -300,6 +312,12 @@ int Value::compare(const Value &other) const
             (void *)other.str_value_.c_str(),
             other.str_value_.length());
       } break;
+      case TEXTS: {
+        return common::compare_string((void *)this->str_value_.c_str(),
+            this->str_value_.length(),
+            (void *)other.str_value_.c_str(),
+            other.str_value_.length());
+      } break;
       case DATES: {
         return common::compare_date((void *)&this->date_value_, (void *)&other.date_value_);
       } break;
@@ -319,7 +337,7 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
-  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+  } else if ((this->attr_type_ == CHARS|| this->attr_type_==TEXTS) && other.attr_type_ == FLOATS) {
     float this_data;
     std::string v = this->str_value_;
     if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
@@ -328,7 +346,7 @@ int Value::compare(const Value &other) const
       this_data = std::stof(v);
     }
     return common::compare_float((void *)&this_data, (void *)&other.num_value_.float_value_);
-  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+  } else if (this->attr_type_ == FLOATS && (other.attr_type_==TEXTS||other.attr_type_ == CHARS)) {
     float other_data;
     std::string v = other.str_value_;
     if(!(('0' <= v[0] && v[0] <= '9') ||(v[0] == '.'))) {
@@ -337,7 +355,7 @@ int Value::compare(const Value &other) const
       other_data = std::stof(v);
     }
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
-  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+  } else if ((this->attr_type_ == CHARS|| this->attr_type_==TEXTS)  && other.attr_type_ == INTS) {
     float this_data;
     std::string v = this->str_value_;
     if(!('0' <= v[0] && v[0] <= '9')) {
@@ -347,7 +365,7 @@ int Value::compare(const Value &other) const
     }
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this_data, (void *)&other_data);
-  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+  } else if (this->attr_type_ == INTS && (other.attr_type_ == CHARS)||other.attr_type_==TEXTS) {
     float this_data = this->num_value_.int_value_;
     float other_data;
     std::string v = other.str_value_;
@@ -370,6 +388,14 @@ int Value::get_int() const
 {
   switch (attr_type_) {
     case CHARS: {
+      try {
+        return (int)(std::stol(str_value_));
+      } catch (std::exception const &ex) {
+        LOG_TRACE("failed to convert string to number. s=%s, ex=%s", str_value_.c_str(), ex.what());
+        return 0;
+      }
+    }
+    case TEXTS: {
       try {
         return (int)(std::stol(str_value_));
       } catch (std::exception const &ex) {
@@ -405,6 +431,14 @@ float Value::get_float() const
         return 0.0;
       }
     } break;
+    case TEXTS: {
+      try {
+        return std::stof(str_value_);
+      } catch (std::exception const &ex) {
+        LOG_TRACE("failed to convert string to float. s=%s, ex=%s", str_value_.c_str(), ex.what());
+        return 0.0;
+      }
+    } break;
     case INTS: {
       return float(num_value_.int_value_);
     } break;
@@ -431,6 +465,22 @@ bool Value::get_boolean() const
 {
   switch (attr_type_) {
     case CHARS: {
+      try {
+        float val = std::stof(str_value_);
+        if (val >= EPSILON || val <= -EPSILON) {
+          return true;
+        }
+        int int_val = std::stoi(str_value_);
+        if (int_val != 0) {
+          return true;
+        }
+        return false;
+      } catch (std::exception const &ex) {
+        LOG_TRACE("failed to convert string to float or integer. s=%s, ex=%s", str_value_.c_str(), ex.what());
+        return false;
+      }
+    } break;
+    case TEXTS: {
       try {
         float val = std::stof(str_value_);
         if (val >= EPSILON || val <= -EPSILON) {
@@ -562,13 +612,21 @@ RC value_cast(const FieldMeta* field_meta, Value &value) {
       LOG_WARN("field type mismatch. field=%s, field type=%d, value_type=%d",
           field_meta->name(), field_type, value_type);
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-    } else if (field_type == CHARS) {
+    } else if (field_type == CHARS||field_type==TEXTS) {
       const char *data = value.get_string().c_str();
       value.set_string(data, strlen(data));
     } else if (field_type == INTS) {
       int data;
       switch (value_type) {
         case CHARS: {
+          std::string v = (char *)value.data();
+          if (!('0' <= v[0] && v[0] <= '9')) {
+            data = 0;
+          } else {
+            data = std::stoi(v);
+          }
+        } break;
+        case TEXTS: {
           std::string v = (char *)value.data();
           if (!('0' <= v[0] && v[0] <= '9')) {
             data = 0;
@@ -586,6 +644,14 @@ RC value_cast(const FieldMeta* field_meta, Value &value) {
       float data;
       switch (value_type) {
         case CHARS: {
+          std::string v = (char *)value.data();
+          if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
+            data = 0;
+          } else {
+            data = std::stof(v);
+          }
+        } break;
+        case TEXTS: {
           std::string v = (char *)value.data();
           if (!(('0' <= v[0] && v[0] <= '9') || (v[0] == '.'))) {
             data = 0;

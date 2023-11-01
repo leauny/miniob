@@ -1,4 +1,4 @@
-#line 1 "lex_sql.cpp"
+#line 2 "lex_sql.cpp"
 /*
 这里的代码会被复制到lex_sql.cpp的最开始位置
 定义yy_size_t的原因是因为flex生成的代码，会使用yy_size_t与其他类型的数字
@@ -22,7 +22,7 @@ do {                                                         \
 }                                                            \
 while (0);
 
-#line 25 "lex_sql.cpp"
+#line 26 "lex_sql.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -786,7 +786,7 @@ extern int atoi();
 extern double atof();
 
 #define RETURN_TOKEN(token) LOG_DEBUG("%s", #token);return token
-#line 789 "lex_sql.cpp"
+#line 790 "lex_sql.cpp"
 /* Prevent the need for linking with -lfl */
 #define YY_NO_INPUT 1
 /* 不区分大小写 */
@@ -795,7 +795,7 @@ extern double atof();
 /* 1. 匹配的规则长的优先 */
 /* 2. 写在最前面的优先 */
 /* yylval 就可以认为是 yacc 中 %union 定义的结构体(union 结构) */
-#line 798 "lex_sql.cpp"
+#line 799 "lex_sql.cpp"
 
 #define INITIAL 0
 #define STR 1
@@ -1081,7 +1081,7 @@ YY_DECL
 #line 79 "lex_sql.l"
 
 
-#line 1084 "lex_sql.cpp"
+#line 1085 "lex_sql.cpp"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1357,7 +1357,7 @@ RETURN_TOKEN(STRING_T);
 case 42:
 YY_RULE_SETUP
 #line 143 "lex_sql.l"
-RETURN_TOKEN(STRING_T);
+RETURN_TOKEN(TEXT_T);
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
@@ -1590,7 +1590,7 @@ YY_RULE_SETUP
 #line 198 "lex_sql.l"
 ECHO;
 	YY_BREAK
-#line 1593 "lex_sql.cpp"
+#line 1594 "lex_sql.cpp"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(STR):
 	yyterminate();

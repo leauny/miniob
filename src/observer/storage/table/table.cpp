@@ -262,7 +262,7 @@ RC Table::insert_record(Record &record)
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
     }
-    rc2 = record_handler_->delete_record(&record.rid());
+    rc2 = record_handler_->delete_record(&record.rid(),table_meta_.record_size());
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -347,7 +347,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
     if (field->nullable() && value.attr_type() == NULLS) {
       continue;
     }
-    if (field->type() != value.attr_type()) {
+    if (field->type() != value.attr_type()&&(field->type()!=AttrType::TEXTS||value.attr_type()!=AttrType::CHARS)) {
       LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
                 table_meta_.name(), field->name(), field->type(), value.attr_type());
       return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -608,7 +608,7 @@ RC Table::delete_record(const Record &record)
         "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
         name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
-  rc = record_handler_->delete_record(&record.rid());
+  rc = record_handler_->delete_record(&record.rid(),table_meta_.record_size());
   return rc;
 }
 
@@ -616,21 +616,11 @@ RC Table::update_record(const std::vector<std::pair<Expression*, int>>& expressi
 {
   RC rc = RC::SUCCESS;
   Record update_record = record;
-  // delete old record
-  rc = delete_record(record);
-  if (OB_FAIL(rc)) {
-    LOG_ERROR("Failed to delete old record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
-    return rc;
-  }
   for (auto& [expr, offset] : expressions_and_offsets) {
     const Value value = dynamic_cast<ValueExpr*>(expr)->get_value();
     memcpy(update_record.data() + offset, value.data(), value.length());
   }
-  rc = insert_record(update_record);
-  if (OB_FAIL(rc)) {
-    LOG_ERROR("Failed to insert new record. table=%s, rc=%d:%s", name(), rc, strrc(rc));
-    return rc;
-  }
+  rc = record_handler_->update_record(&record.rid(),update_record.data(),table_meta_.record_size());
   return rc;
 }
 
