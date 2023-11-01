@@ -29,7 +29,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/metrics/metrics_registry.h"
 #include "common/metrics/console_reporter.h"
 
-#define MAX_MEM_BUFFER_SIZE 8192
+#define MAX_MEM_BUFFER_SIZE 81920
 #define PORT_DEFAULT 6789
 
 using namespace common;
