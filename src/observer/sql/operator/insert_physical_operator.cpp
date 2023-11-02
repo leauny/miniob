@@ -57,7 +57,7 @@ RC InsertPhysicalOperator::open(Trx *trx)
         }
         values.emplace_back(value);
       }
-      values_.emplace_back(values);  // 存入select到的结果
+      values_.emplace_back(std::move(values));  // 存入select到的结果
     } while (!children_.empty() && RC::SUCCESS == children_[0]->next());;
   }
 
