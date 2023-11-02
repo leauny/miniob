@@ -1315,6 +1315,7 @@ condition:
     }
     | rel_expr comp_op subquery
     {
+      $3->selection.is_subquery = true;
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
       $$ = new ComparisonExpr($2,
@@ -1324,6 +1325,8 @@ condition:
     }
     | subquery comp_op subquery
     {
+     $1->selection.is_subquery = true;
+     $3->selection.is_subquery = true;
      auto subquery_expr_1 = new SubQueryExpr(*$1);
      auto subquery_expr_2 = new SubQueryExpr(*$3);
      subquery_expr_1->set_subquery_type(SubQueryType::SINGLE_VALUE);
@@ -1335,6 +1338,7 @@ condition:
     }
     | rel_expr IN_ subquery
     {
+      $3->selection.is_subquery = true;
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::IN,
@@ -1344,6 +1348,7 @@ condition:
     }
     | rel_expr NOT_IN_ subquery
     {
+      $3->selection.is_subquery = true;
       auto subquery_expr = new SubQueryExpr(*$3);
       subquery_expr->set_subquery_type(SubQueryType::LIST_VALUE);
       $$ = new ComparisonExpr(CompOp::NOT_IN,
