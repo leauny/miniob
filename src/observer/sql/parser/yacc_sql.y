@@ -117,6 +117,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         HELP
         EXIT
         DOT //QUOTE
@@ -458,7 +459,9 @@ attr_def:
       $$->name = $1;
       if ($2 == DATES) {
         $$->length = 10;
-      } else {
+      } else if($2 == TEXTS){
+        $$->length = MAX_TEXT_LENGTH;
+      }else{
         $$->length = 4;
       }
       if ($3) {
@@ -487,6 +490,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES record_list
