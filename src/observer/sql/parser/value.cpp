@@ -593,7 +593,7 @@ std::string Value::get_date_format() const { return date_format_; }
 
 RC value_cast(const FieldMeta *field_meta, Value &value)
 {
-  if (field_meta->type() == TEXTS && value.length() > MAX_TEXT_LENGTH) {
+  if (field_meta->type() == TEXTS && value.length() > MAX_TEXT_LENGTH+1) {
     LOG_WARN("the length of text type over %d",MAX_TEXT_LENGTH);
     return RC::OVER_MAX_SIZE;
   }
