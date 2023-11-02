@@ -460,7 +460,7 @@ attr_def:
       if ($2 == DATES) {
         $$->length = 10;
       } else if($2 == TEXTS){
-        $$->length = 65535;
+        $$->length = MAX_TEXT_LENGTH;
       }else{
         $$->length = 4;
       }

@@ -37,6 +37,7 @@ enum AttrType
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
 };
 
+const int MAX_TEXT_LENGTH = 65535; // the max size of text type
 const char *attr_type_to_string(AttrType type);
 AttrType attr_type_from_string(const char *s);
 

@@ -2254,7 +2254,7 @@ yyreduce:
       if ((yyvsp[-1].number) == DATES) {
         (yyval.attr_info)->length = 10;
       } else if((yyvsp[-1].number) == TEXTS){
-        (yyval.attr_info)->length = 65535;
+        (yyval.attr_info)->length = MAX_TEXT_LENGTH;
       }else{
         (yyval.attr_info)->length = 4;
       }
