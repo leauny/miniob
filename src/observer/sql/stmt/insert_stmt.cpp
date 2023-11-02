@@ -59,7 +59,7 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
       const AttrType   field_type = field_meta->type()==AttrType::TEXTS ? AttrType::CHARS : field_meta->type();
       const AttrType   value_type = value[i].attr_type();
-      if(field_meta->type()==AttrType::TEXTS&&value[i].length()>MAX_TEXT_LENGTH){
+      if(field_meta->type()==AttrType::TEXTS&&value[i].length()>MAX_TEXT_LENGTH+1){
         LOG_WARN("the length of text type overs 65535");
         return RC::OVER_MAX_SIZE;
       }
