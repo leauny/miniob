@@ -282,7 +282,8 @@ RC LogicalPlanGenerator::create_plan(
 {
   unique_ptr<PredicateLogicalOperator> predicate_oper;
   if (!filter_stmt->filter_expr().empty()) {
-    unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, filter_stmt->filter_expr()));
+    unique_ptr<ConjunctionExpr> conjunction_expr(
+        new ConjunctionExpr(filter_stmt->conjunction_type(), filter_stmt->filter_expr()));
     predicate_oper = std::make_unique<PredicateLogicalOperator>(std::move(conjunction_expr));
   }
 

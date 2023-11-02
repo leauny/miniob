@@ -101,10 +101,13 @@ public:
     return filter_expr_;
   }
 
+  ConjunctionExpr::Type conjunction_type() const { return type_; }
+
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const std::vector<Expression*> conditions, FilterStmt *&stmt);
+      const std::vector<Expression*>& conditions, FilterStmt *&stmt);
 
 private:
-  std::vector<std::unique_ptr<Expression>> filter_expr_;  // 默认当前都是AND关系
+  std::vector<std::unique_ptr<Expression>> filter_expr_;
+  ConjunctionExpr::Type type_{ConjunctionExpr::Type::AND};
 };

@@ -21,12 +21,12 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const std::vector<Expression*> conditions, FilterStmt *&stmt)
+    const std::vector<Expression*>& conditions, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt = nullptr;
 
-  FilterStmt *tmp_stmt = new FilterStmt();
+  auto *tmp_stmt = new FilterStmt();
   std::vector<std::unique_ptr<Expression>> cmp_exprs;
 
   for (const auto condition : conditions) {
@@ -35,6 +35,11 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       LOG_WARN("Too many condition in one ConjunctionExpr");
       return RC::INTERNAL;
     }
+
+    // con1(and) or con2(or): 因为parser阶段是尾插的，
+    // 由于仅支持整体and/or，这样取最后一个就可以获得全局的类型
+    tmp_stmt->type_ = conjunc_expr->conjunction_type();
+
     // 将条件都转换为bool类型
     std::unique_ptr<Expression> tmp = std::unique_ptr<Expression>(
         new CastExpr(std::move(conjunc_expr->children()[0]), AttrType::BOOLEANS));
