@@ -151,6 +151,8 @@ struct SelectSqlNode  // selection
   std::vector<Expression *> having;      ///< group by having clause
 
   std::vector<Expression *> order;       ///< order by clause
+  bool is_subquery{false};
+  std::vector<Expression *> parent_relations;  ///< parent relations
 };
 
 /**

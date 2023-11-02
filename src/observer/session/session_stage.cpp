@@ -174,6 +174,10 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           }
           auto subquery = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : sql_event->sql_node()->selection.relations) {
+            subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
           rc = handle_subquey(subquery, subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
@@ -181,6 +185,10 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto subquery = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : sql_event->sql_node()->selection.relations) {
+            subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
           rc = handle_subquey(subquery, subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
@@ -226,6 +234,14 @@ RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_
           }
           auto sub_subquery = new SQLStageEvent(subquery->session_event());
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : subquery->sql_node()->selection.relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          // 将父查询的父查询表存入
+          for (auto rel : subquery->sql_node()->selection.parent_relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
           rc = handle_subquey(sub_subquery, sub_subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
@@ -233,6 +249,14 @@ RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_
           auto sub_subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto sub_subquery = new SQLStageEvent(subquery->session_event());
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : subquery->sql_node()->selection.relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          // 将父查询的父查询表存入
+          for (auto rel : subquery->sql_node()->selection.parent_relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
           rc = handle_subquey(sub_subquery, sub_subquery_expr);
           if (OB_FAIL(rc)) { return rc; }
         }

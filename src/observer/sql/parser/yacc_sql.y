@@ -1301,6 +1301,7 @@ condition:
     }
     | subquery comp_op rel_expr
     {
+      $1->selection.is_subquery = true;
       auto subquery_expr = new SubQueryExpr(*$1);
       subquery_expr->set_subquery_type(SubQueryType::SINGLE_VALUE);
       $$ = new ComparisonExpr($2,
