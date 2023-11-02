@@ -2,7 +2,7 @@
 #define yyHEADER_H 1
 #define yyIN_HEADER 1
 
-#line 6 "lex_sql.h"
+#line 5 "lex_sql.h"
 /*
 这里的代码会被复制到lex_sql.cpp的最开始位置
 定义yy_size_t的原因是因为flex生成的代码，会使用yy_size_t与其他类型的数字
@@ -26,7 +26,7 @@ do {                                                         \
 }                                                            \
 while (0);
 
-#line 30 "lex_sql.h"
+#line 29 "lex_sql.h"
 
 #define  YY_INT_ALIGNED short int
 
@@ -358,9 +358,9 @@ static int yy_flex_strlen ( const char * , yyscan_t yyscanner);
 #ifndef YY_READ_BUF_SIZE
 #ifdef __ia64__
 /* On IA-64, the buffer size is 16k, not 8k */
-#define YY_READ_BUF_SIZE 163840
+#define YY_READ_BUF_SIZE 16384
 #else
-#define YY_READ_BUF_SIZE 81920
+#define YY_READ_BUF_SIZE 8192
 #endif /* __ia64__ */
 #endif
 
@@ -541,9 +541,9 @@ extern int yylex \
 #undef yyTABLES_NAME
 #endif
 
-#line 198 "lex_sql.l"
+#line 199 "lex_sql.l"
 
 
-#line 548 "lex_sql.h"
+#line 547 "lex_sql.h"
 #undef yyIN_HEADER
 #endif /* yyHEADER_H */

@@ -214,3 +214,29 @@ CLogManager *Db::clog_manager()
 {
   return clog_manager_.get();
 }
+
+RC Db::create_view(const char *base_table_name, const char *view_name, int attribute_count, AttrInfoSqlNode *attributes)
+{
+  // TODO: 没有实现，仅仅是create_table的内容
+  RC rc = RC::SUCCESS;
+  // check table_name
+  if (opened_tables_.count(view_name) != 0 || opened_tables_.count(base_table_name) != 0) {
+    LOG_WARN("%s has been opened before.", view_name);
+    return RC::SCHEMA_TABLE_EXIST;
+  }
+
+  // 文件路径可以移到Table模块
+  std::string table_file_path = table_meta_file(path_.c_str(), base_table_name);
+  Table *table = new Table();
+  int32_t table_id = next_table_id_++;
+  rc = table->create(table_id, table_file_path.c_str(), view_name, path_.c_str(), attribute_count, attributes);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create table %s.", base_table_name);
+    delete table;
+    return rc;
+  }
+
+  opened_tables_[base_table_name] = table;
+  LOG_INFO("Create table success. table name=%s, table_id:%d", base_table_name, table_id);
+  return RC::SUCCESS;
+}
