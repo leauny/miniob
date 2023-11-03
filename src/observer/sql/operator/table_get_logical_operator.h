@@ -40,6 +40,16 @@ public:
   {
     return predicates_;
   }
+  std::vector<Expression*> &related_exprs()
+  {
+    return related_exprs_;
+  }
+  void set_related_exprs(std::vector<Expression*> &exprs)
+  {
+    for (auto &expr : exprs) {
+      related_exprs_.push_back(expr);
+    }
+  }
 
 private:
   Table *table_ = nullptr;
@@ -51,4 +61,5 @@ private:
   // 不包含复杂的表达式运算，比如加减乘除、或者conjunction expression
   // 如果有多个表达式，他们的关系都是 AND
   std::vector<std::unique_ptr<Expression>> predicates_;
+  std::vector<Expression*> related_exprs_;
 };

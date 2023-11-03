@@ -84,6 +84,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
+  // collect tables in `from` statement
+  std::vector<Table *> parent_tables;
+  std::unordered_map<std::string, Table *> parent_table_map;
+  std::vector<Expression *> related_expr;
   // 对于子查询，同时收集父查询的表，来处理相关子查询
   if (select_sql.is_subquery) {
     for (auto &table_expr : select_sql.parent_relations) {
@@ -104,15 +108,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::SCHEMA_TABLE_NOT_EXIST;
       }
 
-      tables.push_back(table);
-      if (table_map.count(table_alias) > 0) {
-        LOG_WARN("duplicate table alias. table_alias=%s", table_alias.c_str());
-        return RC::SCHEMA_TABLE_ALIAS_DUPLICATE;
-      }
+      parent_tables.push_back(table);
       if (!table_alias.empty()) {
-        table_map.insert(std::pair<std::string, Table *>(table_alias, table));
+        parent_table_map.insert(std::pair<std::string, Table *>(table_alias, table));
       }
-      table_map.insert(std::pair<std::string, Table *>(table_name, table));
+      parent_table_map.insert(std::pair<std::string, Table *>(table_name, table));
     }
   }
 
@@ -150,11 +150,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         rc = FieldExpr::build_field(condition, tables[0], useless, useless);
         if(OB_FAIL(rc)) { return rc; };
       } else {
-        rc = FieldExpr::build_field(condition, table_map, useless, useless);
+        rc = FieldExpr::build_subquery_field(condition, tables[0], parent_table_map, useless, useless, related_expr);
         if(OB_FAIL(rc)) { return rc; };
       }
     }
-
   } else {
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
       rc = FieldExpr::build_field(select_sql.attributes[i], table_map, has_attr, has_agg);
@@ -285,6 +284,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->order_fields_.swap(order_expr);
   select_stmt->group_fields_.swap(group_expr);
   select_stmt->having_fields_.swap(having_expr);
+  select_stmt->related_expr_.swap(related_expr);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

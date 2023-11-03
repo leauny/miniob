@@ -69,6 +69,10 @@ public:
   {
     return filter_stmt_;
   }
+  std::vector<Expression *> &related_expr()
+  {
+    return related_expr_;
+  }
   bool get_agg() { return has_agg_; }
 
 private:
@@ -87,4 +91,5 @@ private:
   std::vector<Table *> tables_;
   bool has_agg_;
   FilterStmt *filter_stmt_ = nullptr;
+  std::vector<Expression *> related_expr_;
 };
