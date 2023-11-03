@@ -192,6 +192,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            update_stmt
 %type <sql_node>            delete_stmt
 %type <sql_node>            create_table_stmt
+%type <sql_node>            create_view_stmt
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            show_index_stmt
@@ -232,6 +233,7 @@ command_wrapper:
   | update_stmt
   | delete_stmt
   | create_table_stmt
+  | create_view_stmt
   | drop_table_stmt
   | show_tables_stmt
   | show_index_stmt
@@ -289,7 +291,13 @@ drop_table_stmt:    /*drop table 语句的语法解析树*/
       $$ = new ParsedSqlNode(SCF_DROP_TABLE);
       $$->drop_table.relation_name = $3;
       free($3);
-    };
+    }
+    | DROP VIEW ID {
+      $$ = new ParsedSqlNode(SCF_DROP_TABLE);
+      $$->drop_table.relation_name = $3;
+      free($3);
+    }
+    ;
 
 show_tables_stmt:
     SHOW TABLES {
@@ -373,6 +381,47 @@ drop_index_stmt:      /*drop index 语句的语法解析树*/
       free($5);
     }
     ;
+
+create_view_stmt:
+    CREATE VIEW ID AS select_stmt
+    {
+      $$ = $5;
+      ParsedSqlNode* p = $$;
+      p->set_flag(SCF_CREATE_VIEW);
+
+      CreateViewSqlNode &create_view = $$->create_view;
+      create_view.relation_name = $3;
+      free($3);
+
+      create_view.select_node = &($$->selection);
+    }
+    | CREATE VIEW ID LBRACE attr_list RBRACE select_stmt
+    {
+      $$ = $7;
+      ParsedSqlNode* p = $$;
+      p->set_flag(SCF_CREATE_VIEW);
+
+      CreateViewSqlNode &create_view = $$->create_view;
+      create_view.relation_name = $3;
+      free($3);
+
+      create_view.select_node = &($$->selection);
+
+      for (auto &field : *$5) {
+        if (field->type() != ExprType::FIELD) {
+          LOG_ERROR("create view attr must be field.");
+          return -1;
+        }
+        ViewInfoSqlNode node;
+        node.name = field->name();  // 设置视图中的属性名
+        create_view.view_infos.emplace_back(std::move(node));
+      }
+
+      std::reverse(create_view.view_infos.begin(), create_view.view_infos.end());
+      delete $5;
+    }
+    ;
+
 create_table_stmt:    /*create table 语句的语法解析树*/
     CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE
     {
@@ -380,27 +429,6 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       CreateTableSqlNode &create_table = $$->create_table;
       create_table.relation_name = $3;
       free($3);
-
-      std::vector<AttrInfoSqlNode> *src_attrs = $6;
-
-      if (src_attrs != nullptr) {
-        create_table.attr_infos.swap(*src_attrs);
-      }
-      create_table.attr_infos.emplace_back(*$5);
-      std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
-      delete $5;
-    }
-    | CREATE VIEW ID LBRACE attr_def attr_def_list RBRACE select_stmt
-    {
-      $$ = $8;
-      ParsedSqlNode* p = $$;
-      p->set_flag(SCF_CREATE_TABLE);
-
-      CreateTableSqlNode &create_table = $$->create_table;
-      create_table.relation_name = $3;
-      free($3);
-
-      create_table.select_node = &($$->selection);
 
       std::vector<AttrInfoSqlNode> *src_attrs = $6;
 
@@ -431,18 +459,6 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       create_table.attr_infos.emplace_back(*$5);
       std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
-    }
-    | CREATE VIEW ID AS select_stmt
-    {
-      $$ = $5;
-      ParsedSqlNode* p = $$;
-      p->set_flag(SCF_CREATE_TABLE);
-
-      CreateTableSqlNode &create_table = $$->create_table;
-      create_table.relation_name = $3;
-      free($3);
-
-      create_table.select_node = &($$->selection);
     }
     | CREATE TABLE ID AS select_stmt
     {

@@ -52,7 +52,7 @@ Table::~Table()
   LOG_INFO("Table has been closed: %s", name());
 }
 
-RC Table::create(int32_t table_id, 
+RC Table::create(int32_t table_id,
                  const char *path, 
                  const char *name, 
                  const char *base_dir, 
@@ -697,6 +697,119 @@ RC Table::sync()
   return rc;
 }
 
-const std::vector<Index*>& Table::all_indexes() {
+const std::vector<Index*>&Table::all_indexes() {
   return indexes_;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+RC View::create(
+    int32_t view_id,
+    const char *path,
+    const char *name,
+    const char *base_dir,
+    int attribute_count,
+    const ViewInfoSqlNode *attributes,
+    const char *conditions)
+{
+  if (view_id < 0) {
+    LOG_WARN("invalid table/view id. id=%d, view_name=%s", view_id, name);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to create view %s:%s", base_dir, name);
+
+  if (attribute_count <= 0 || nullptr == attributes) {
+    LOG_WARN("Invalid arguments. view_name=%s, attribute_count=%d, attributes=%p", name, attribute_count, attributes);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = RC::SUCCESS;
+
+  // 使用 view_name.table记录一个视图的元数据
+  // 判断表文件是否已经存在
+  int fd = ::open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    if (EEXIST == errno) {
+      LOG_ERROR("Failed to create view file, it has been created. %s, EEXIST, %s", path, strerror(errno));
+      return RC::SCHEMA_TABLE_EXIST;
+    }
+    LOG_ERROR("Create view file failed. filename=%s, errmsg=%d:%s", path, errno, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  close(fd);
+
+  // 创建文件
+  if ((rc = view_meta_.init(view_id, name, attribute_count, attributes, conditions)) != RC::SUCCESS) {
+    LOG_ERROR("Failed to init view meta. name:%s, ret:%d", name, rc);
+    return rc;  // delete table file
+  }
+
+  std::fstream fs;
+  fs.open(path, std::ios_base::out | std::ios_base::binary);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open file for write. file name=%s, errmsg=%s", path, strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+
+  // 记录元数据到文件中
+  view_meta_.serialize(fs);
+  fs.close();
+
+  base_dir_ = base_dir;
+  LOG_INFO("Successfully create view %s:%s", base_dir, name);
+  return rc;
+}
+
+RC View::open(const std::unordered_map<std::string, Table *> &opened_tables, const char *meta_file, const char *base_dir)
+{
+  // 加载元数据文件
+  std::fstream fs;
+  std::string meta_file_path = std::string(base_dir) + common::FILE_PATH_SPLIT_STR + meta_file;
+  fs.open(meta_file_path, std::ios_base::in | std::ios_base::binary);
+  if (!fs.is_open()) {
+    LOG_ERROR("Failed to open meta file for read. file name=%s, errmsg=%s", meta_file_path.c_str(), strerror(errno));
+    return RC::IOERR_OPEN;
+  }
+  if (view_meta_.deserialize(fs) < 0) {
+    LOG_ERROR("Failed to deserialize view meta. file name=%s", meta_file_path.c_str());
+    fs.close();
+    return RC::INTERNAL;
+  }
+  fs.close();
+
+  base_dir_ = base_dir;
+
+  for (auto &[name, ptr] : view_meta_.tables()) {
+    if (opened_tables.count(name) <= 0) {
+      LOG_WARN("Unknown base table %d in view %d will be unavailable.", name.c_str(), view_meta_.name());
+    }
+    if (ptr != nullptr) {
+      ptr = opened_tables.at(name);
+    }
+  }
+
+  return RC::SUCCESS;
+}
+
+RC View::drop(const char *name)
+{
+  if (common::is_blank(name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+  LOG_INFO("Begin to drop view %s:%s", base_dir_.c_str(), name);
+  std::string view_file_path = view_meta_file(base_dir_.c_str(), name);
+  if (std::remove(view_file_path.c_str()) == 0) {
+    LOG_INFO("drop view meta file %s success", view_file_path.c_str());
+  } else {
+    LOG_WARN("drop view meta file %s failed!", view_file_path.c_str());
+    return RC::IOERR_ACCESS;
+  }
+  return RC::SUCCESS;
 }

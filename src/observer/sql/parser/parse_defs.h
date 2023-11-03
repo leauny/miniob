@@ -203,6 +203,20 @@ struct DeleteSqlNode
  * Rel -> Relation
  * Attr -> Attribute
  */
+struct ViewInfoSqlNode
+{
+  std::string name;             ///< Attribute name
+  std::string base_name;        ///< Base table attribute name
+  std::string relation_name;    ///< Base table name;
+};
+
+/**
+ * @brief 描述一个属性
+ * @ingroup SQLParser
+ * @details 属性，或者说字段(column, field)
+ * Rel -> Relation
+ * Attr -> Attribute
+ */
 struct AttrInfoSqlNode
 {
   AttrType    type;             ///< Type of attribute
@@ -222,6 +236,18 @@ struct CreateTableSqlNode
   std::vector<AttrInfoSqlNode> attr_infos;     ///< attributes
   struct SelectSqlNode *select_node{nullptr};  ///< create-select
 };
+
+/**
+ * @brief 描述一个create view语句
+ * @ingroup SQLParser
+ */
+struct CreateViewSqlNode
+{
+  std::string                  relation_name;  ///< Relation name
+  std::vector<ViewInfoSqlNode> view_infos;     ///< attributes
+  struct SelectSqlNode *select_node{nullptr};  ///< create-select
+};
+
 
 /**
  * @brief 描述一个drop table语句
@@ -338,6 +364,7 @@ enum SqlCommandFlag
   SCF_INSERT,
   SCF_UPDATE,
   SCF_DELETE,
+  SCF_CREATE_VIEW,
   SCF_CREATE_TABLE,
   SCF_DROP_TABLE,
   SCF_CREATE_INDEX,
@@ -371,6 +398,7 @@ public:
   DeleteSqlNode       deletion;
   UpdateSqlNode       update;
   CreateTableSqlNode  create_table;
+  CreateViewSqlNode   create_view;
   DropTableSqlNode    drop_table;
   ShowIndexSqlNode    show_index;
   CreateIndexSqlNode  create_index;

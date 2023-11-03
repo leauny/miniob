@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <functional>
 #include "storage/table/table_meta.h"
+#include "storage/view/view_meta.h"
 
 struct RID;
 class Record;
@@ -54,7 +55,7 @@ public:
             int attribute_count, 
             const AttrInfoSqlNode attributes[]);
 
-  RC drop(const char *name);
+  virtual RC drop(const char *name);
   /**
    * 打开一个表
    * @param meta_file 保存表元数据的文件完整路径
@@ -96,8 +97,9 @@ public:
   }
 
 public:
-  int32_t table_id() const { return table_meta_.table_id(); }
-  const char *name() const;
+  virtual bool is_view() const { return false; }
+  virtual int32_t table_id() const { return table_meta_.table_id(); }
+  virtual const char *name() const;
 
   const TableMeta &table_meta() const;
 
@@ -121,4 +123,71 @@ private:
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;
+};
+
+
+/**
+ * @brief 视图
+ *
+ */
+class View : public Table {
+public:
+  View() = default;
+  ~View() = default;
+
+  /**
+   * 创建一个视图
+   * @param path 元数据保存的文件(完整路径)
+   * @param name 视图名
+   * @param base_dir db根目录
+   * @param attribute_count 字段个数
+   * @param attributes 字段
+   * @param conditions 过滤条件
+   */
+  RC create(int32_t view_id,
+      const char *path,
+      const char *name,
+      const char *base_dir,
+      int attribute_count,
+      const ViewInfoSqlNode attributes[],
+      const char *conditions);
+
+  RC drop (const char *name) override;
+
+  /**
+   * 打开一个视图
+   * @param meta_file 保存表元数据的文件完整路径
+   * @param base_dir 视图所在的文件夹
+   */
+  RC open(const std::unordered_map<std::string, Table *> &opened_tables, const char *meta_file, const char *base_dir);
+
+  /**
+   * @brief 根据给定的字段生成一个记录/行
+   * @details 通常是由用户传过来的字段，按照schema信息组装成一个record。
+   * @param value_num 字段的个数
+   * @param values    每个字段的值
+   * @param record    生成的记录数据
+   */
+  RC make_record(int value_num, const Value *values, Record &record);
+
+  /**
+   * @brief 在当前的表中插入一条记录
+   * @details 在表文件和索引中插入关联数据。这里只管在表中插入数据，不关心事务相关操作。
+   * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
+   */
+  RC insert_record(Record &record);
+  RC delete_record(const Record &record);
+  RC update_record(const std::vector<std::pair<Expression*, int>>& expressions_and_offsets, Record &record);
+  RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
+  RC get_record(const RID &rid, Record &record);
+
+public:
+  bool is_view() const override { return true; }
+  int32_t table_id() const override { return view_meta_.table_id(); }
+  const char * name() const override { return view_meta_.name(); }
+  const ViewMeta &view_meta() const { return view_meta_; }
+
+private:
+  std::string base_dir_;
+  ViewMeta   view_meta_;
 };

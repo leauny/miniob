@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #pragma once
 
 #include <string>
+#include <utility>
 
 #include "common/rc.h"
 #include "sql/parser/parse_defs.h"
@@ -58,4 +59,29 @@ protected:
   int attr_len_;
   bool visible_;
   bool nullable_;
+};
+
+class ViewFieldMata {
+public:
+  ViewFieldMata() = default;
+  ViewFieldMata(int index, std::string name, std::string base_name, std::string relation)
+      : index_(index), name_(std::move(name)), base_name_(std::move(base_name)), relation_(std::move(relation)) {}
+  ~ViewFieldMata() = default;
+
+  RC init(int index, const char *name, const char *base_name, const char *relation_name);
+
+  int index() const { return index_; }
+
+public:
+  void to_json(Json::Value &json_value) const;
+  static RC from_json(const Json::Value &json_value, ViewFieldMata &field);
+  std::string name() const { return name_; }
+  std::string base_name() const { return base_name_; }
+  std::string relation() const { return relation_; }
+
+private:
+  int index_{-1};
+  std::string name_;
+  std::string base_name_;
+  std::string relation_;
 };

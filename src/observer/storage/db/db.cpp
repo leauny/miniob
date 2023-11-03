@@ -112,7 +112,7 @@ RC Db::drop_table(const char *table_name) {
   auto table = opened_tables_[table_name];
   rc = table->drop(table_name);
   if (rc != RC::SUCCESS) {
-    LOG_ERROR("Failed to create table %s.", table_name);
+    LOG_ERROR("Failed to drop table %s.", table_name);
     delete table;
     return rc;
   }
@@ -173,7 +173,39 @@ RC Db::open_all_tables()
     LOG_INFO("Open table: %s, file: %s", table->name(), filename.c_str());
   }
 
-  LOG_INFO("All table have been opened. num=%d", opened_tables_.size());
+  // open all views
+  std::vector<std::string> view_meta_files;
+  ret = common::list_file(path_.c_str(), VIEW_META_FILE_PATTERN, view_meta_files);
+  if (ret < 0) {
+    LOG_ERROR("Failed to list view meta files under %s.", path_.c_str());
+    return RC::IOERR_READ;
+  }
+
+  rc = RC::SUCCESS;
+  for (const std::string &filename : view_meta_files) {
+    View *view = new View();
+    rc = view->open(opened_tables_, filename.c_str(), path_.c_str());
+    if (rc != RC::SUCCESS) {
+      delete view;
+      LOG_ERROR("Failed to open view. filename=%s", filename.c_str());
+      return rc;
+    }
+
+    if (opened_tables_.count(view->name()) != 0) {
+      delete view;
+      LOG_ERROR("Duplicate table with difference file name. table=%s, the other filename=%s",
+          view->name(), filename.c_str());
+      return RC::INTERNAL;
+    }
+
+    if (view->table_id() >= next_table_id_) {
+      next_table_id_ = view->table_id() + 1;
+    }
+    opened_tables_[view->name()] = view;
+    LOG_INFO("Open table: %s, file: %s", view->name(), filename.c_str());
+  }
+
+  LOG_INFO("All table and view have been opened. num=%d", opened_tables_.size());
   return rc;
 }
 
@@ -215,28 +247,32 @@ CLogManager *Db::clog_manager()
   return clog_manager_.get();
 }
 
-RC Db::create_view(const char *base_table_name, const char *view_name, int attribute_count, AttrInfoSqlNode *attributes)
+RC Db::create_view(const char *view_name, int attribute_count, const ViewInfoSqlNode *attributes, const char *condition)
 {
   // TODO: 没有实现，仅仅是create_table的内容
   RC rc = RC::SUCCESS;
   // check table_name
-  if (opened_tables_.count(view_name) != 0 || opened_tables_.count(base_table_name) != 0) {
+  if (opened_tables_.count(view_name) != 0) {
     LOG_WARN("%s has been opened before.", view_name);
     return RC::SCHEMA_TABLE_EXIST;
   }
 
-  // 文件路径可以移到Table模块
-  std::string table_file_path = table_meta_file(path_.c_str(), base_table_name);
-  Table *table = new Table();
-  int32_t table_id = next_table_id_++;
-  rc = table->create(table_id, table_file_path.c_str(), view_name, path_.c_str(), attribute_count, attributes);
+  std::string view_file_path = view_meta_file(path_.c_str(), view_name);
+  View *view = new View();
+  int32_t view_id = next_table_id_++;
+  rc = view->create(view_id,
+      view_file_path.c_str(),
+      view_name, path_.c_str(),
+      attribute_count,
+      attributes,
+      condition);
   if (rc != RC::SUCCESS) {
-    LOG_ERROR("Failed to create table %s.", base_table_name);
-    delete table;
+    LOG_ERROR("Failed to create table %s.", view_name);
+    delete view;
     return rc;
   }
 
-  opened_tables_[base_table_name] = table;
-  LOG_INFO("Create table success. table name=%s, table_id:%d", base_table_name, table_id);
+  opened_tables_[view_name] = view;
+  LOG_INFO("Create table success. view name=%s, id:%d", view_name, view_id);
   return RC::SUCCESS;
 }

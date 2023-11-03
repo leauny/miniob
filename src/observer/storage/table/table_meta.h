@@ -40,6 +40,8 @@ public:
 
   RC add_index(const IndexMeta &index);
 
+  RC add_view(const std::string &view_name);
+
 public:
   int32_t table_id() const { return table_id_; }
   const char *name() const;
@@ -75,6 +77,7 @@ protected:
   std::string name_;
   std::vector<FieldMeta> fields_;  // 包含sys_fields
   std::vector<IndexMeta> indexes_;
+  std::vector<std::string>  views_;
 
   int record_size_ = 0;
 };

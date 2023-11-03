@@ -26,13 +26,15 @@ static const Json::StaticString FIELD_TABLE_ID("table_id");
 static const Json::StaticString FIELD_TABLE_NAME("table_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_INDEXES("indexes");
+static const Json::StaticString FIELD_VIEWS("views");
 
 TableMeta::TableMeta(const TableMeta &other)
     : table_id_(other.table_id_),
     name_(other.name_),
     fields_(other.fields_),
     indexes_(other.indexes_),
-    record_size_(other.record_size_)
+    record_size_(other.record_size_),
+    views_(other.views_)
 {}
 
 void TableMeta::swap(TableMeta &other) noexcept
@@ -41,6 +43,7 @@ void TableMeta::swap(TableMeta &other) noexcept
   fields_.swap(other.fields_);
   indexes_.swap(other.indexes_);
   std::swap(record_size_, other.record_size_);
+  views_.swap(other.views_);
 }
 
 RC TableMeta::init(int32_t table_id, const char *name, int field_num, const AttrInfoSqlNode attributes[])
@@ -97,6 +100,12 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 RC TableMeta::add_index(const IndexMeta &index)
 {
   indexes_.push_back(index);
+  return RC::SUCCESS;
+}
+
+RC TableMeta::add_view(const std::string &view_name)
+{
+  views_.push_back(view_name);
   return RC::SUCCESS;
 }
 
@@ -214,6 +223,12 @@ int TableMeta::serialize(std::ostream &ss) const
   }
   table_value[FIELD_INDEXES] = std::move(indexes_value);
 
+  Json::Value views_value;
+  for (const auto &view : views_) {
+    views_value.append(view);
+  }
+  table_value[FIELD_VIEWS] = std::move(views_value);
+
   Json::StreamWriterBuilder builder;
   Json::StreamWriter *writer = builder.newStreamWriter();
 
@@ -300,6 +315,21 @@ int TableMeta::deserialize(std::istream &is)
       }
     }
     indexes_.swap(indexes);
+  }
+
+  const Json::Value &views_value = table_value[FIELD_VIEWS];
+  if (!views_value.empty()) {
+    if (!views_value.isArray()) {
+      LOG_ERROR("Invalid view name. views is not array, json value=%s", fields_value.toStyledString().c_str());
+      return -1;
+    }
+    const int view_num = views_value.size();
+    std::vector<std::string> views(view_num);
+    for (int i = 0; i < view_num; i++) {
+      std::string &view = views[i];
+      view = views_value[i].asString();
+    }
+    views_.swap(views);
   }
 
   return (int)(is.tellg() - old_pos);

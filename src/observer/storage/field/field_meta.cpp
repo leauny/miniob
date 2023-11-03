@@ -19,6 +19,10 @@ See the Mulan PSL v2 for more details. */
 
 #include "json/json.h"
 
+const static Json::StaticString VIEW_INDEX("index");
+const static Json::StaticString VIEW_FIELD_NAME("name");
+const static Json::StaticString VIEW_BASE_NAME("base_name");
+const static Json::StaticString VIEW_REL_NAME("rel_name");
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_TYPE("type");
 const static Json::StaticString FIELD_OFFSET("offset");
@@ -157,4 +161,65 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
   bool visible = visible_value.asBool();
   bool nullable = nullable_value.asBool();
   return field.init(name, type, offset, len, visible, nullable);
+}
+
+void ViewFieldMata::to_json(Json::Value &json_value) const
+{
+  json_value[VIEW_FIELD_NAME] = name_;
+  json_value[VIEW_BASE_NAME] = base_name_;
+  json_value[VIEW_REL_NAME] = relation_;
+  json_value[VIEW_INDEX] = index_;
+}
+
+RC ViewFieldMata::from_json(const Json::Value &json_value, ViewFieldMata &field)
+{
+  if (!json_value.isObject()) {
+    LOG_ERROR("Failed to deserialize field. json is not an object. json value=%s", json_value.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
+
+  const Json::Value &name_value = json_value[VIEW_FIELD_NAME];
+  const Json::Value &base_name_value = json_value[VIEW_BASE_NAME];
+  const Json::Value &relation_value = json_value[VIEW_REL_NAME];
+  const Json::Value &index_value = json_value[VIEW_INDEX];
+
+  if (!name_value.isString()) {
+    LOG_ERROR("Field name is not a string. json value=%s", name_value.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
+  if (!base_name_value.isString()) {
+    LOG_ERROR("Field base name is not a string. json value=%s", base_name_value.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
+  if (!relation_value.isString()) {
+    LOG_ERROR("Relation name is not a string. json value=%s", relation_value.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
+
+  if (!index_value.isInt()) {
+    LOG_ERROR("Index is not an integer. json value=%s", index_value.toStyledString().c_str());
+    return RC::INTERNAL;
+  }
+
+  const char *name = name_value.asCString();
+  const char *base_name = base_name_value.asCString();
+  const char *relation_name = relation_value.asCString();
+  int index = index_value.asInt();
+  return field.init(index, name, base_name, relation_name);
+}
+
+RC ViewFieldMata::init(int index, const char *name, const char *base_name, const char *relation_name)
+{
+  if (common::is_blank(name) || common::is_blank(base_name) || common::is_blank(relation_name)) {
+    LOG_WARN("Name cannot be empty");
+    return RC::INVALID_ARGUMENT;
+  }
+
+  name_ = name;
+  base_name_ = base_name;
+  relation_ = relation_name;
+  index_ = index;
+
+  LOG_INFO("Init a view field with name=%s", name);
+  return RC::SUCCESS;
 }
