@@ -55,7 +55,7 @@ protected:
 protected:
   void handle_request(common::StageEvent *event);
   RC   handle_sql(SQLStageEvent *sql_event);
-  RC   handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr);
+  RC   handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr, std::vector<Expression *> &related_expr);
 
 private:
   QueryCacheStage query_cache_stage_;

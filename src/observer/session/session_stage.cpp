@@ -27,7 +27,9 @@ See the Mulan PSL v2 for more details. */
 #include "net/server.h"
 #include "net/communicator.h"
 #include "session/session.h"
+#include "sql/stmt/select_stmt.h"
 
+class SelectStmt;
 using namespace common;
 
 // Constructor
@@ -148,6 +150,7 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
     return rc;
   }
 
+  std::vector<Expression *> related_expr;
   if (sql_event->sql_node()->flag == SCF_UPDATE) {
     UpdateSqlNode& update = sql_event->sql_node()->update;
     for (auto& [field, expr] : update.update_fields) {
@@ -155,11 +158,12 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
         auto subquery_expr = dynamic_cast<SubQueryExpr *>(expr);
         auto subquery = new SQLStageEvent(sql_event->session_event());
         subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
-        rc = handle_subquey(subquery, subquery_expr);
+        rc = handle_subquey(subquery, subquery_expr, related_expr);
         if (OB_FAIL(rc)) { return rc; }
       }
     }
   }
+
 
   if (sql_event->sql_node()->flag == SCF_SELECT) {
     for (auto &expr : sql_event->sql_node()->selection.conditions) {
@@ -174,14 +178,22 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
           }
           auto subquery = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
-          rc = handle_subquey(subquery, subquery_expr);
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : sql_event->sql_node()->selection.relations) {
+            subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          rc = handle_subquey(subquery, subquery_expr, related_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
         if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
           auto subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto subquery = new SQLStageEvent(sql_event->session_event());
           subquery->set_sql_node(std::make_unique<ParsedSqlNode>(subquery_expr->subquery_node()));
-          rc = handle_subquey(subquery, subquery_expr);
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : sql_event->sql_node()->selection.relations) {
+            subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          rc = handle_subquey(subquery, subquery_expr, related_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
       }
@@ -192,6 +204,13 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
     return rc;
+  }
+
+  // 将相关子查询放入主查询
+  if (sql_event->sql_node()->flag == SCF_SELECT) {
+    for (auto &expr : related_expr) {
+      dynamic_cast<SelectStmt*>(sql_event->stmt())->related_expr().push_back(expr);
+    }
   }
 
   rc = optimize_stage_.handle_request(sql_event);
@@ -209,11 +228,12 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
   return rc;
 }
 
-RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr) {
+RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_expr, std::vector<Expression *> &related_expr) {
   RC rc = RC::SUCCESS;
   SqlResult *sql_result = subquery->session_event()->sql_result();
 
   if (subquery->sql_node()->flag == SCF_SELECT) {
+    auto select_stmt = dynamic_cast<SelectStmt*>(subquery->stmt());
     for (auto &expr : subquery->sql_node()->selection.conditions) {
       if (expr->type() == ExprType::CONJUNCTION &&
           dynamic_cast<ConjunctionExpr*>(expr)->children()[0]->type() == ExprType::COMPARISON) {
@@ -226,14 +246,31 @@ RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_
           }
           auto sub_subquery = new SQLStageEvent(subquery->session_event());
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
-          rc = handle_subquey(sub_subquery, sub_subquery_expr);
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : subquery->sql_node()->selection.relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          // 将父查询的父查询表存入
+          for (auto rel : subquery->sql_node()->selection.parent_relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          rc = handle_subquey(sub_subquery, sub_subquery_expr, related_expr);
           if (OB_FAIL(rc)) { return rc; }
+
         }
         if (comparison_expr->left()->type() == ExprType::SUBQUERY) {
           auto sub_subquery_expr = dynamic_cast<SubQueryExpr *>(comparison_expr->left().get());
           auto sub_subquery = new SQLStageEvent(subquery->session_event());
           sub_subquery->set_sql_node(std::make_unique<ParsedSqlNode>(sub_subquery_expr->subquery_node()));
-          rc = handle_subquey(sub_subquery, sub_subquery_expr);
+          // 将父查询的表存入子查询中，用于检查相关子查询
+          for (auto rel : subquery->sql_node()->selection.relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          // 将父查询的父查询表存入
+          for (auto rel : subquery->sql_node()->selection.parent_relations) {
+            sub_subquery->sql_node()->selection.parent_relations.push_back(rel);
+          }
+          rc = handle_subquey(sub_subquery, sub_subquery_expr, related_expr);
           if (OB_FAIL(rc)) { return rc; }
         }
       }
@@ -246,6 +283,14 @@ RC SessionStage::handle_subquey(SQLStageEvent *subquery, SubQueryExpr *subquery_
     sql_result->set_return_code(rc);
     return rc;
   }
+
+  // 从子查询中拿取到相关子查询
+  if (subquery->sql_node()->flag == SCF_SELECT) {
+    for (auto expr_pair : dynamic_cast<SelectStmt*>(subquery->stmt())->related_expr()) {
+      related_expr.push_back(expr_pair);
+    }
+  }
+  dynamic_cast<SelectStmt*>(subquery->stmt())->related_expr().clear();
 
   // 生成子查询的物理执行计划操作符，留作后面处理
   rc = optimize_stage_.handle_request(subquery);

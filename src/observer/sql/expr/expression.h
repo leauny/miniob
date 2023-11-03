@@ -174,14 +174,22 @@ public:
 
   void  set_order(Order order) { order_ = order; }
 
+  void set_related(bool related) { related_ = related; }
+  bool get_related() { return related_; }
+  RC set_related_value(const Tuple *tuple);
+
   static RC build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg);
   static RC build_field(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, bool &has_attr, bool &has_agg);  // multi-table
+  static RC build_subquery_field(Expression *expr, Table *table, const std::unordered_map<std::string, Table *> &parent_table_map, bool &has_attr, bool &has_agg,
+      std::vector<Expression *> &related_expr_);
   static RC create_field_expr(Expression *expr, Table *table, bool &has_attr, bool &has_agg, bool multi_table);
 
 private:
   Field field_;
   RelAttrSqlNode node_;
   Order order_{Order::NONE};
+  bool related_ = false;
+  Value* related_value_ = nullptr;
 };
 
 /**

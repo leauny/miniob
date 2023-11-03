@@ -64,6 +64,8 @@ RC ProjectPhysicalOperator::close()
   }
   if (has_agg_ && agg_tuple_) {
     delete agg_tuple_;
+    agg_done_ = false;
+    agg_tuple_ = nullptr;
   }
   return RC::SUCCESS;
 }

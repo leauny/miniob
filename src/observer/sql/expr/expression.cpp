@@ -24,6 +24,10 @@ using namespace std;
 
 RC FieldExpr::get_value(const Tuple *tuple, Value &value)
 {
+  if (related_) {
+    value = *related_value_;
+    return RC::SUCCESS;
+  }
   if (tuple) {
     if (tuple->type() == TupleType::VALUE && value.attr_type() == INTS) {
       // Value存储的是index，用于传递信息保持接口统一
@@ -34,6 +38,18 @@ RC FieldExpr::get_value(const Tuple *tuple, Value &value)
     value.set_null();
     return RC::SUCCESS;
   }
+}
+
+RC FieldExpr::set_related_value(const Tuple *tuple)
+{
+  related_value_ = new Value();
+  RC rc = RC::SUCCESS;
+  if (tuple) {
+    rc = tuple->find_cell(TupleCellSpec(table_name(), field_name()), *related_value_);
+  } else {
+    related_value_->set_null();
+  }
+  return rc;
 }
 
 RC FieldExpr::build_field(Expression *expr, Table *table, bool &has_attr, bool &has_agg) {
@@ -151,6 +167,94 @@ RC FieldExpr::build_field(Expression *expr, const std::unordered_map<std::string
     case ExprType::FUNC: {
       auto func_expr = dynamic_cast<FuncExpr*>(expr);
       rc = build_field(func_expr->child().get(), table_map, has_attr, has_agg);
+      auto type = func_expr->func_type();
+      auto parm = func_expr->get_parm();
+      auto child_name = func_expr->child()->alias().empty() ? func_expr->child()->name() : func_expr->child()->alias();
+      std::string name{};
+      switch (type) {
+        case FUNC_MIN: name += "min(" + child_name + ')'; break;
+        case FUNC_MAX: name += "max(" + child_name + ')'; break;
+        case FUNC_AVG: name += "avg(" + child_name + ')'; break;
+        case FUNC_SUM: name += "sum(" + child_name + ')'; break;
+        case FUNC_COUNT:
+        case FUNC_WCOUNT: name += "count(" + child_name + ')'; break;
+        case FUNC_ROUND: {
+          if (parm.empty()) {
+            name += "round(" + child_name + ')';
+          } else {
+            name += "round(" + child_name + "," + parm + ')';
+          }
+        } break;
+        case FUNC_LENGTH: name += "length(" + child_name + ')'; break;
+        case FUNC_DATE_FORMAT: name += "data_format(" + child_name + "," + parm + ')'; break;
+        default:
+          LOG_WARN("Wrong func type.");
+      }
+      func_expr->set_name(name);  // 设置名称
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
+    default:
+      LOG_WARN("Got unsupported ExprType: %d, check whether it has child nodes.", expr->type());
+  }
+  return rc;
+}
+
+RC FieldExpr::build_subquery_field(Expression *expr, Table *table, const std::unordered_map<std::string, Table *> &parent_table_map, bool &has_attr, bool &has_agg,
+    std::vector<Expression *> &related_expr_)
+{
+  RC rc = RC::SUCCESS;
+  if (!expr) {
+    LOG_WARN("Expr is null.");
+    return rc;
+  }
+  switch (expr->type()) {
+    case ExprType::FIELD: {
+      auto field_expr = dynamic_cast<FieldExpr*>(expr);
+      if (!field_expr->get_node().relation_name.empty() && parent_table_map.count(field_expr->get_node().relation_name) == 1) {
+        auto parent_table =
+            parent_table_map.count(field_expr->get_node().relation_name) == 1 ?
+            parent_table_map.at(field_expr->get_node().relation_name) : nullptr;
+        if (!parent_table) {
+          LOG_ERROR("No table name in attribute %s.", field_expr->get_node().relation_name.c_str());
+          return RC::INTERNAL;
+        }
+        rc = create_field_expr(expr, parent_table, has_attr, has_agg, true);
+        if(OB_FAIL(rc)) { return rc; };
+        field_expr->set_related(true);
+        related_expr_.push_back(field_expr);
+      } else {
+        rc = create_field_expr(expr, table, has_attr, has_agg, false);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    }break;
+    case ExprType::COMPARISON: {
+      auto comparison_expr = dynamic_cast<ComparisonExpr*>(expr);
+      rc = build_subquery_field(comparison_expr->left().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_subquery_field(comparison_expr->right().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::CONJUNCTION: {
+      for (auto &expression : dynamic_cast<ConjunctionExpr*>(expr)->children()) {
+        rc = build_subquery_field(expression.get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+        if(OB_FAIL(rc)) { return rc; };
+      }
+    } break;
+    case ExprType::CAST: {
+      auto cast_expr = dynamic_cast<CastExpr*>(expr);
+      rc = build_subquery_field(cast_expr->child().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+      if(OB_FAIL(rc)) { return rc; };
+    } break;
+    case ExprType::ARITHMETIC: {
+      auto arithmetic_expr = dynamic_cast<ArithmeticExpr*>(expr);
+      rc = build_subquery_field(arithmetic_expr->left().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+      if(OB_FAIL(rc)) { return rc; };
+      rc = build_subquery_field(arithmetic_expr->right().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
+      if(OB_FAIL(rc)) { return rc; };
+    }break;
+    case ExprType::FUNC: {
+      auto func_expr = dynamic_cast<FuncExpr*>(expr);
+      rc = build_subquery_field(func_expr->child().get(), table, parent_table_map, has_attr, has_agg, related_expr_);
       auto type = func_expr->func_type();
       auto parm = func_expr->get_parm();
       auto child_name = func_expr->child()->alias().empty() ? func_expr->child()->name() : func_expr->child()->alias();
@@ -379,12 +483,6 @@ RC ComparisonExpr::get_value(const Tuple *tuple, Value &value)
       return rc;
     }
 
-//    if (((left_->type() == ExprType::SUBQUERY && left_value.attr_type() == NULLS) ||
-//            (right_->type() == ExprType::SUBQUERY && right_value.attr_type() == NULLS))
-//        && (comp_ != CompOp::IS_NULL || comp_ != CompOp::IS_NOT_NULL)) {
-//      return RC::INTERNAL;
-//    }
-
     bool bool_value = false;
     rc = compare_value(left_value, right_value, bool_value);
     if (rc == RC::SUCCESS) {
@@ -585,45 +683,51 @@ int SubQueryExpr::list_tuple_len()
 
 RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 {
-  if (!query_value_) {
-    operator_->open(trx_);
-    std::vector<Value> subquery_result;
-    while (RC::SUCCESS == operator_->next()) {
-      auto t = operator_->current_tuple();
-      int cell_num = t->cell_num();
-      if (cell_num > 1) {
-        LOG_TRACE("subquery result is not a single value");
-        return RC::INTERNAL;
-      }
-      Value tmp_value;
-      t->cell_at(0, tmp_value);
-      subquery_result.push_back(tmp_value);
-    }
-    if (subquery_result.empty()) {
-      query_value_ = new Value();
-      query_value_->set_null();
-    } else if (subquery_result.size() > 1) {
-      operator_->close();
+  RC rc = operator_->open(trx_);
+  if (OB_FAIL(rc)) {
+    return rc;
+  }
+  std::vector<Value> subquery_result;
+  while (RC::SUCCESS == (rc = operator_->next())) {
+    auto t = operator_->current_tuple();
+    int cell_num = t->cell_num();
+    if (cell_num > 1) {
       LOG_TRACE("subquery result is not a single value");
       return RC::INTERNAL;
-    } else {
-      query_value_ = new Value(subquery_result[0]);
     }
-    operator_->close();
+    Value tmp_value;
+    t->cell_at(0, tmp_value);
+    subquery_result.push_back(tmp_value);
   }
+  if (rc != RC::RECORD_EOF) {
+    operator_->close();
+    return rc;
+  }
+  if (subquery_result.empty()) {
+    query_value_ = new Value();
+    query_value_->set_null();
+  } else if (subquery_result.size() > 1) {
+    operator_->close();
+    LOG_TRACE("subquery result is not a single value");
+    return RC::INTERNAL;
+  } else {
+    query_value_ = new Value(subquery_result[0]);
+  }
+  operator_->close();
   value = *query_value_;
   return RC::SUCCESS;
 }
 
 RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
 {
-  if (operator_ && list_tuple_ == nullptr) {
+  RC rc = RC::SUCCESS;
+  if (operator_) {
     list_tuple_ = new ValueListTuple();
     operator_->open(trx_);
     std::vector<Tuple *> subquery_result;
-    while (RC::SUCCESS == operator_->next()) {
-      Tuple* t = operator_->current_tuple();
-      int cell_num = t->cell_num();
+    while (RC::SUCCESS == (rc = operator_->next())) {
+      Tuple *t        = operator_->current_tuple();
+      int    cell_num = t->cell_num();
       if (cell_num > 1) {
         operator_->close();
         LOG_TRACE("subquery a tuple result is not a single value");
@@ -632,6 +736,10 @@ RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
       Value tmp_value;
       t->cell_at(0, tmp_value);
       list_tuple_->add_value(tmp_value);
+    }
+    if (rc != RC::RECORD_EOF) {
+      operator_->close();
+      return rc;
     }
     operator_->close();
   }

@@ -201,7 +201,8 @@ RC LogicalPlanGenerator::create_plan(
     }
 
     // 根据找到的field来创建table get operator
-    unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true/*readonly*/));
+    unique_ptr<TableGetLogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true/*readonly*/));
+    table_get_oper->set_related_exprs(select_stmt->related_expr());
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);
     } else {
@@ -273,6 +274,7 @@ RC LogicalPlanGenerator::create_plan(
     }
   }
 
+  // 将相关子查询给到table_scan操作符
   logical_operator.swap(project_oper);
   return RC::SUCCESS;
 }

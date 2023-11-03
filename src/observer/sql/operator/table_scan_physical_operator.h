@@ -48,6 +48,18 @@ public:
 
   void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
 
+  void set_related_exprs(std::vector<Expression*> &exprs)
+  {
+    for (auto &expr : exprs) {
+      related_exprs_.push_back(expr);
+    }
+  }
+
+  std::vector<Expression*> &related_exprs()
+  {
+    return related_exprs_;
+  }
+
 private:
   RC filter(RowTuple &tuple, bool &result);
 
@@ -59,4 +71,5 @@ private:
   Record                                   current_record_;
   RowTuple                                 tuple_;
   std::vector<std::unique_ptr<Expression>> predicates_; // TODO chang predicate to table tuple filter
+  std::vector<Expression*>  related_exprs_;
 };

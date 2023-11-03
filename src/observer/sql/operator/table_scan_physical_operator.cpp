@@ -56,6 +56,10 @@ RC TableScanPhysicalOperator::next()
       rc = RC::RECORD_EOF;
     }
   }
+  for (auto &expr : related_exprs_) {
+    auto field_expr = dynamic_cast<FieldExpr*>(expr);
+    field_expr->set_related_value(&tuple_);
+  }
   return rc;
 }
 
