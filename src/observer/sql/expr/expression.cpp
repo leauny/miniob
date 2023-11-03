@@ -716,13 +716,13 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 
 RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
 {
-  if (operator_ && list_tuple_ == nullptr) {
+  if (operator_) {
     list_tuple_ = new ValueListTuple();
     operator_->open(trx_);
     std::vector<Tuple *> subquery_result;
     while (RC::SUCCESS == operator_->next()) {
-      Tuple* t = operator_->current_tuple();
-      int cell_num = t->cell_num();
+      Tuple *t        = operator_->current_tuple();
+      int    cell_num = t->cell_num();
       if (cell_num > 1) {
         operator_->close();
         LOG_TRACE("subquery a tuple result is not a single value");
