@@ -40,6 +40,8 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
+  const std::vector<std::vector<Value>> *values = nullptr;
+
   if (table->is_view()) {
     View *view = dynamic_cast<View *>(table);
     const ViewMeta &view_meta = view->view_meta();
@@ -47,10 +49,17 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
       LOG_ERROR("View didn't support mutation.");
       return RC::INTERNAL;
     }
-    // TODO: 拼接view中的内容
+    // 拼接value
+    auto value_list = new std::vector<std::vector<Value>>(inserts.values.size());
+    for (auto i = 0; i < value_list->size(); ++i) {
+      view->make_record(inserts.values[i].size(), inserts.values[i].data(), value_list->at(i));
+    }
+    values = value_list;
+    table = view->base_table();
+  } else {
+    values = &inserts.values;
   }
 
-  const std::vector<std::vector<Value>> *values = &inserts.values;
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num() - table_meta.sys_field_num();
   for (const auto &value : *values) {

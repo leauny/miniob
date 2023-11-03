@@ -58,6 +58,7 @@ public:
   explicit Value(int val);
   explicit Value(float val);
   explicit Value(bool val);
+  explicit Value(nullptr_t);
   explicit Value(const char *s, int len = 0);
   explicit Value(date val);
   explicit Value(date val, std::string date_format);

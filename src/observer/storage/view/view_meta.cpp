@@ -37,6 +37,7 @@ void ViewMeta::swap(ViewMeta &other) noexcept
 }
 
 RC ViewMeta::init(
+    const std::unordered_map<std::string, Table *> &opened_tables,
     int32_t view_id,
     const char *name,
     int field_num,
@@ -62,7 +63,11 @@ RC ViewMeta::init(
       mutable_ = false;
     }
     fields_[i] = ViewFieldMata(i, attr_info.name, attr_info.base_name, attr_info.relation_name);
-    tables_[attr_info.relation_name] = nullptr;  // 插入表，但没有指针，需要open
+    if (opened_tables.count(attr_info.relation_name) <= 0) {
+      LOG_ERROR("Unknown table %d.", attr_info.relation_name.c_str());
+      return RC::INTERNAL;
+    }
+    tables_[attr_info.relation_name] = opened_tables.at(attr_info.relation_name);  // 插入表，但没有指针，需要open
   }
 
   table_id_ = view_id;

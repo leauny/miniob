@@ -34,18 +34,20 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
   }
 
   // 创建视图属性映射
+  std::string field_name;
   for (auto i = 0; i < exprs.size(); ++i) {
-    if (exprs[i]->type() != ExprType::FIELD) {
+    ViewInfoSqlNode view_info{};
+    auto *expr = exprs[i].get();
+    if (exprs[i]->type() == ExprType::FIELD) {
+      view_info.relation_name = dynamic_cast<FieldExpr*>(exprs[i].get())->field().table_name();
+    } else if (exprs[i]->type() == ExprType::FUNC) {
+      view_info.relation_name = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(expr)->child().get())->field().table_name();
+    } else {
       sql_debug("selct expr %s, is not field type.", exprs[i]->name().c_str());
       return RC::INTERNAL;
     }
 
-    const auto expr = dynamic_cast<FieldExpr*>(exprs[i].get());
-
-    ViewInfoSqlNode view_info{};
-
     view_info.base_name = expr->name();                    // 设置对应的基表属性名
-    view_info.relation_name = expr->field().table_name();  // 设置基表名
     if (have_field) {
       view_info.name = view_infos.at(i).name;              // 设置视图属性名
     } else {

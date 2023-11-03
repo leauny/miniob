@@ -703,13 +703,8 @@ const std::vector<Index*>&Table::all_indexes() {
 
 //////////////////////////////////////////////////////////////////////////////////
 
-RC View::create(
-    int32_t view_id,
-    const char *path,
-    const char *name,
-    const char *base_dir,
-    int attribute_count,
-    const ViewInfoSqlNode *attributes,
+RC View::create(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *path,
+    const char *name, const char *base_dir, int attribute_count, const ViewInfoSqlNode *attributes,
     const char *conditions)
 {
   if (view_id < 0) {
@@ -745,7 +740,7 @@ RC View::create(
   close(fd);
 
   // 创建文件
-  if ((rc = view_meta_.init(view_id, name, attribute_count, attributes, conditions)) != RC::SUCCESS) {
+  if ((rc = view_meta_.init(opened_tables, view_id, name, attribute_count, attributes, conditions)) != RC::SUCCESS) {
     LOG_ERROR("Failed to init view meta. name:%s, ret:%d", name, rc);
     return rc;  // delete table file
   }
@@ -789,9 +784,7 @@ RC View::open(const std::unordered_map<std::string, Table *> &opened_tables, con
     if (opened_tables.count(name) <= 0) {
       LOG_WARN("Unknown base table %d in view %d will be unavailable.", name.c_str(), view_meta_.name());
     }
-    if (ptr != nullptr) {
-      ptr = opened_tables.at(name);
-    }
+    ptr = opened_tables.at(name);
   }
 
   return RC::SUCCESS;
@@ -812,4 +805,62 @@ RC View::drop(const char *name)
     return RC::IOERR_ACCESS;
   }
   return RC::SUCCESS;
+}
+
+const TableMeta &View::table_meta() const {
+  ASSERT(view_meta_.tables().size() == 1, "More than one table.");
+  return view_meta_.tables().begin()->second->table_meta();
+}
+
+RC View::make_record(int value_num, const Value *values, vector<Value> &record)
+{
+  // 根据传入的内容生成记录
+  if (!is_mutable()) {
+    LOG_ERROR("view is not mutable.");
+    return RC::INTERNAL;
+  }
+  auto base_fields = view_meta_.tables().begin()->second->table_meta();
+  auto base_fields_num = view_meta_.tables().begin()->second->table_meta().field_num();
+  auto view_fields = view_meta_.fields();
+  auto view_fields_num = view_meta_.fields_num();
+  ASSERT(base_fields_num >= view_fields_num, "view field size bigger than table.");
+
+  unordered_map<std::string, int> field_map;
+  for (auto i = 0; i < base_fields_num; ++i) {
+    auto table_field = base_fields.field(i);
+    if (field_map.count(table_field->name()) > 0) {
+      LOG_ERROR("Duplicate field name.");
+      return RC::INTERNAL;
+    }
+    field_map[table_field->name()] = i;
+  }
+
+  // 设置默认值全部为null
+  auto table_values = std::vector<Value>(base_fields_num, Value(nullptr));
+  for (auto i = 0; i < view_fields_num; ++i) {
+    if (field_map.count(view_fields.at(i).base_name()) <= 0) {
+      LOG_ERROR("Unknown base field %s in view.", view_fields.at(i).base_name().c_str());
+      return RC::INTERNAL;
+    }
+    // 赋值view的Value到table的Value
+    table_values.at(field_map.at(view_fields.at(i).base_name())) = values[i];
+  }
+  record.swap(table_values);
+  return RC::SUCCESS;
+}
+
+Table *View::base_table()
+{
+  if (view_meta_.tables().size() > 0) {
+    return view_meta_.tables().begin()->second;
+  }
+  return nullptr;
+}
+
+Table *View::base_table(const char* name)
+{
+  if (view_meta_.tables().count(name) <= 0) {
+    return nullptr;
+  }
+  return view_meta_.tables().at(name);
 }

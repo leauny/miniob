@@ -29,7 +29,7 @@ public:
 
   void swap(ViewMeta &other) noexcept;
 
-  RC init(int32_t view_id, const char *name, int attr_num, const ViewInfoSqlNode attributes[], const char * conditions);
+  RC init(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *name, int attr_num, const ViewInfoSqlNode attributes[], const char * conditions);
 
 public:
   int32_t table_id() const { return table_id_; }
@@ -39,8 +39,13 @@ public:
   int get_serial_size() const override { return -1; }
   void to_string(std::string &output) const override {}
 
-  std::unordered_map<std::string , Table*> tables() { return tables_; }
+  std::unordered_map<std::string , Table*> &tables() { return tables_; }
+  std::unordered_map<std::string , Table*> tables() const { return tables_; }
   bool is_mutable();
+
+  const std::vector<ViewFieldMata>& fields() const { return fields_; }
+
+  int fields_num() const { return fields_.size(); }
 
 public:
   int serialize(std::ostream &os) const override;

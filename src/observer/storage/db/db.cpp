@@ -260,9 +260,12 @@ RC Db::create_view(const char *view_name, int attribute_count, const ViewInfoSql
   std::string view_file_path = view_meta_file(path_.c_str(), view_name);
   View *view = new View();
   int32_t view_id = next_table_id_++;
-  rc = view->create(view_id,
+  rc = view->create(
+      opened_tables_,
+      view_id,
       view_file_path.c_str(),
-      view_name, path_.c_str(),
+      view_name,
+      path_.c_str(),
       attribute_count,
       attributes,
       condition);

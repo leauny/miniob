@@ -101,7 +101,7 @@ public:
   virtual int32_t table_id() const { return table_meta_.table_id(); }
   virtual const char *name() const;
 
-  const TableMeta &table_meta() const;
+  virtual const TableMeta &table_meta() const;
 
   RC sync();
 
@@ -144,12 +144,8 @@ public:
    * @param attributes 字段
    * @param conditions 过滤条件
    */
-  RC create(int32_t view_id,
-      const char *path,
-      const char *name,
-      const char *base_dir,
-      int attribute_count,
-      const ViewInfoSqlNode attributes[],
+  RC create(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *path,
+      const char *name, const char *base_dir, int attribute_count, const ViewInfoSqlNode *attributes,
       const char *conditions);
 
   RC drop (const char *name) override;
@@ -168,7 +164,7 @@ public:
    * @param values    每个字段的值
    * @param record    生成的记录数据
    */
-  RC make_record(int value_num, const Value *values, Record &record);
+  RC make_record(int value_num, const Value *values, std::vector<Value> &record);
 
   /**
    * @brief 在当前的表中插入一条记录
@@ -185,8 +181,11 @@ public:
   bool is_view() const override { return true; }
   int32_t table_id() const override { return view_meta_.table_id(); }
   const char * name() const override { return view_meta_.name(); }
+  const TableMeta & table_meta() const override;
   const ViewMeta &view_meta() const { return view_meta_; }
   bool is_mutable() { return view_meta_.is_mutable(); }
+  Table *base_table();
+  Table *base_table(const char *name);
 
 private:
   std::string base_dir_;
