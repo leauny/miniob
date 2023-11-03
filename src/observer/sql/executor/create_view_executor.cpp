@@ -27,16 +27,18 @@ RC CreateViewExecutor::execute(SQLStageEvent *sql_event)
   std::string sql_tmp = sql_event->sql();
   std::transform(sql_tmp.begin(), sql_tmp.end(), sql_tmp.begin(), ::tolower);  // 转换为小写后调用find
   auto pos = sql_tmp.find("where");
-  char *condition = new char[sql_tmp.size()];
+  std::string condition = new char[sql_tmp.size()];
   if (pos != std::string::npos) {
-    strcpy(condition, sql_event->sql().substr(pos + 5).c_str());
-  }
-  if (condition[strlen(condition) - 1] == ';') {
-    condition[strlen(condition) - 1] = '\0';
+    condition = sql_event->sql().substr(pos + 5).c_str();
+    if (condition[condition.size() - 1] == ';') {
+      condition[condition.size() - 1] = '\0';
+    }
+  } else {
+    condition = "";
   }
 
   RC rc = session->get_current_db()->create_view(
-      table_name, attribute_count, create_view_stmt->attr_infos().data(), condition);
+      table_name, attribute_count, create_view_stmt->attr_infos().data(), condition.c_str());
 
   return rc;
 }
