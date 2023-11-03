@@ -688,7 +688,7 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
     return rc;
   }
   std::vector<Value> subquery_result;
-  while (RC::SUCCESS == operator_->next()) {
+  while (RC::SUCCESS == (rc = operator_->next())) {
     auto t = operator_->current_tuple();
     int cell_num = t->cell_num();
     if (cell_num > 1) {
@@ -698,6 +698,10 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
     Value tmp_value;
     t->cell_at(0, tmp_value);
     subquery_result.push_back(tmp_value);
+  }
+  if (rc != RC::RECORD_EOF) {
+    operator_->close();
+    return rc;
   }
   if (subquery_result.empty()) {
     query_value_ = new Value();
@@ -716,11 +720,12 @@ RC SubQueryExpr::get_value(const Tuple *tuple, Value &value)
 
 RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
 {
+  RC rc = RC::SUCCESS;
   if (operator_) {
     list_tuple_ = new ValueListTuple();
     operator_->open(trx_);
     std::vector<Tuple *> subquery_result;
-    while (RC::SUCCESS == operator_->next()) {
+    while (RC::SUCCESS == (rc = operator_->next())) {
       Tuple *t        = operator_->current_tuple();
       int    cell_num = t->cell_num();
       if (cell_num > 1) {
@@ -731,6 +736,10 @@ RC SubQueryExpr::list_get_value(ValueListTuple& list_tuple)
       Value tmp_value;
       t->cell_at(0, tmp_value);
       list_tuple_->add_value(tmp_value);
+    }
+    if (rc != RC::RECORD_EOF) {
+      operator_->close();
+      return rc;
     }
     operator_->close();
   }
