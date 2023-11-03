@@ -40,12 +40,14 @@ public:
   void to_string(std::string &output) const override {}
 
   std::unordered_map<std::string , Table*> tables() { return tables_; }
+  bool is_mutable();
 
 public:
   int serialize(std::ostream &os) const override;
   int deserialize(std::istream &is) override;
 
 protected:
+  bool mutable_{true};  // 多表或出现聚集函数时无法修改
   std::string name_;
   int32_t table_id_ = -1;
   std::string conditions_;

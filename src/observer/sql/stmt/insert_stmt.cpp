@@ -40,8 +40,17 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
+  if (table->is_view()) {
+    View *view = dynamic_cast<View *>(table);
+    const ViewMeta &view_meta = view->view_meta();
+    if (!view->is_mutable()){
+      LOG_ERROR("View didn't support mutation.");
+      return RC::INTERNAL;
+    }
+    // TODO: 拼接view中的内容
+  }
+
   const std::vector<std::vector<Value>> *values = &inserts.values;
-  const int        values_num  = static_cast<int>(values->size());
   const TableMeta &table_meta = table->table_meta();
   const int        field_num  = table_meta.field_num() - table_meta.sys_field_num();
   for (const auto &value : *values) {

@@ -186,6 +186,7 @@ public:
   int32_t table_id() const override { return view_meta_.table_id(); }
   const char * name() const override { return view_meta_.name(); }
   const ViewMeta &view_meta() const { return view_meta_; }
+  bool is_mutable() { return view_meta_.is_mutable(); }
 
 private:
   std::string base_dir_;

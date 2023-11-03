@@ -18,6 +18,7 @@ static const Json::StaticString FIELD_VIEW_NAME("view_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_RELATIONS("tables");
 static const Json::StaticString FIELD_CONDITION("conditions");
+static const Json::StaticString FIELD_MUTABLE("mutable");
 
 ViewMeta::ViewMeta(const ViewMeta &other)
     : table_id_(other.table_id_),
@@ -57,6 +58,9 @@ RC ViewMeta::init(
     const ViewInfoSqlNode &attr_info = attributes[i];
     sql_debug("Got view field: name(%s), base(%s), rel(%s)."
         , attr_info.name.c_str(), attr_info.base_name.c_str(), attr_info.relation_name.c_str());
+    if (attr_info.base_name.find("(") != std::string::npos) {
+      mutable_ = false;
+    }
     fields_[i] = ViewFieldMata(i, attr_info.name, attr_info.base_name, attr_info.relation_name);
     tables_[attr_info.relation_name] = nullptr;  // 插入表，但没有指针，需要open
   }
@@ -75,6 +79,7 @@ int ViewMeta::serialize(std::ostream &ss) const
   view_value[FIELD_VIEW_ID]   = table_id_;
   view_value[FIELD_VIEW_NAME] = name_;
   view_value[FIELD_CONDITION] = conditions_;
+  view_value[FIELD_MUTABLE] = mutable_;
 
   Json::Value fields_value;
   for (const ViewFieldMata& field : fields_) {
@@ -122,6 +127,14 @@ int ViewMeta::deserialize(std::istream &is)
   }
 
   int32_t table_id = table_id_value.asInt();
+
+  const Json::Value &is_mutable = table_value[FIELD_MUTABLE];
+  if (!is_mutable.isBool()) {
+    LOG_ERROR("Invalid mutable flag. json value=%s", is_mutable.toStyledString().c_str());
+    return -1;
+  }
+
+  bool mutable_value = is_mutable.asBool() == 1;
 
   const Json::Value &table_name_value = table_value[FIELD_VIEW_NAME];
   if (!table_name_value.isString()) {
@@ -190,6 +203,7 @@ int ViewMeta::deserialize(std::istream &is)
   fields_.swap(fields);
   conditions_.swap(conditions);
   tables_.swap(tables);
+  mutable_ = mutable_value;
 
   return (int)(is.tellg() - old_pos);
 }
@@ -200,4 +214,9 @@ int ViewMeta::record_size() const {
   } else {
     return 0;
   }
+}
+
+bool ViewMeta::is_mutable()
+{
+  return mutable_;
 }
