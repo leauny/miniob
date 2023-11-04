@@ -17,6 +17,7 @@ static const Json::StaticString FIELD_VIEW_ID("view_id");
 static const Json::StaticString FIELD_VIEW_NAME("view_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_RELATIONS("tables");
+static const Json::StaticString FIELD_FROM("from");
 static const Json::StaticString FIELD_CONDITION("conditions");
 static const Json::StaticString FIELD_MUTABLE("mutable");
 
@@ -37,12 +38,13 @@ void ViewMeta::swap(ViewMeta &other) noexcept
 }
 
 RC ViewMeta::init(
-    const std::unordered_map<std::string, Table *> &opened_tables,
+    const std::vector<Table*>& base_tables,
     int32_t view_id,
     const char *name,
     int field_num,
     const ViewInfoSqlNode attributes[],
-    const char * conditions)
+    const char * conditions,
+    const char * from)
 {
   if (common::is_blank(name)) {
     LOG_ERROR("Name cannot be empty");
@@ -63,16 +65,19 @@ RC ViewMeta::init(
       mutable_ = false;
     }
     fields_[i] = ViewFieldMata(i, attr_info.name, attr_info.base_name, attr_info.relation_name);
-    if (opened_tables.count(attr_info.relation_name) <= 0) {
-      LOG_ERROR("Unknown table %d.", attr_info.relation_name.c_str());
-      return RC::INTERNAL;
+    if (attr_info.relation_name.empty()) {
+      mutable_ = false;  // 存在表达式等
     }
-    tables_[attr_info.relation_name] = opened_tables.at(attr_info.relation_name);  // 插入表，但没有指针，需要open
+  }
+
+  for (auto &n : base_tables) {
+    tables_[n->name()] = n;  // 存储所有表
   }
 
   table_id_ = view_id;
   name_     = name;
   conditions_ = conditions;
+  from_ = from;
   LOG_INFO("Sussessfully initialized view meta. view_id=%d, name=%s", view_id, name);
   return RC::SUCCESS;
 }
@@ -84,6 +89,7 @@ int ViewMeta::serialize(std::ostream &ss) const
   view_value[FIELD_VIEW_ID]   = table_id_;
   view_value[FIELD_VIEW_NAME] = name_;
   view_value[FIELD_CONDITION] = conditions_;
+  view_value[FIELD_FROM] = from_;
   view_value[FIELD_MUTABLE] = mutable_;
 
   Json::Value fields_value;
@@ -157,6 +163,14 @@ int ViewMeta::deserialize(std::istream &is)
 
   std::string conditions = conditions_value.asString();
 
+  const Json::Value &from_value = table_value[FIELD_FROM];
+  if (!from_value.isString()) {
+    LOG_ERROR("Invalid view where clause. json value=%s", from_value.toStyledString().c_str());
+    return -1;
+  }
+
+  std::string from = from_value.asString();
+
   const Json::Value &fields_value = table_value[FIELD_FIELDS];
   if (!fields_value.isArray() || fields_value.size() <= 0) {
     LOG_ERROR("Invalid table meta. fields is not array, json value=%s", fields_value.toStyledString().c_str());
@@ -207,6 +221,7 @@ int ViewMeta::deserialize(std::istream &is)
   name_.swap(table_name);
   fields_.swap(fields);
   conditions_.swap(conditions);
+  from_.swap(from);
   tables_.swap(tables);
   mutable_ = mutable_value;
 

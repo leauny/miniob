@@ -703,9 +703,8 @@ const std::vector<Index*>&Table::all_indexes() {
 
 //////////////////////////////////////////////////////////////////////////////////
 
-RC View::create(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *path,
-    const char *name, const char *base_dir, int attribute_count, const ViewInfoSqlNode *attributes,
-    const char *conditions)
+RC View::create(int32_t view_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+    const ViewInfoSqlNode *attributes, const char *conditions, const char *from, std::vector<Table *> &base_tables)
 {
   if (view_id < 0) {
     LOG_WARN("invalid table/view id. id=%d, view_name=%s", view_id, name);
@@ -740,7 +739,7 @@ RC View::create(const std::unordered_map<std::string, Table *> &opened_tables, i
   close(fd);
 
   // 创建文件
-  if ((rc = view_meta_.init(opened_tables, view_id, name, attribute_count, attributes, conditions)) != RC::SUCCESS) {
+  if ((rc = view_meta_.init(base_tables, view_id, name, attribute_count, attributes, conditions, from)) != RC::SUCCESS) {
     LOG_ERROR("Failed to init view meta. name:%s, ret:%d", name, rc);
     return rc;  // delete table file
   }
@@ -838,12 +837,17 @@ RC View::make_record(int value_num, const Value *values, vector<Value> &record)
   // 设置默认值全部为null
   auto table_values = std::vector<Value>(base_fields_num, Value(nullptr));
   for (auto i = 0; i < view_fields_num; ++i) {
-    if (field_map.count(view_fields.at(i).base_name()) <= 0) {
-      LOG_ERROR("Unknown base field %s in view.", view_fields.at(i).base_name().c_str());
+    auto pos = view_fields.at(i).base_name().find('.');
+    auto name = view_fields.at(i).base_name();
+    if (pos != std::string::npos) {
+      name = view_fields.at(i).base_name().substr(pos + 1);
+    }
+    if (field_map.count(name) <= 0) {
+      LOG_ERROR("Unknown base field %s in view.", name.c_str());
       return RC::INTERNAL;
     }
     // 赋值view的Value到table的Value
-    table_values.at(field_map.at(view_fields.at(i).base_name())) = values[i];
+    table_values.at(field_map.at(name)) = values[i];
   }
   record.swap(table_values);
   return RC::SUCCESS;

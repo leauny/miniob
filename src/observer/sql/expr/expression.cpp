@@ -910,3 +910,38 @@ void FuncExpr::reset() {
   max_ = Value();
   sum_ = Value();
 }
+
+std::string Expression::gen_alias(FuncType type, std::string parm, std::string field_name)
+{
+  switch (type) {
+    case FUNC_MIN: {
+      return "min(" + field_name + ")";
+    } break;
+    case FUNC_MAX: {
+      return "max(" + field_name + ")";
+    } break;
+    case FUNC_AVG: {
+      return "avg(" + field_name + ")";
+    } break;
+    case FUNC_SUM: {
+      return "sum(" + field_name + ")";
+    } break;
+    case FUNC_COUNT: {
+      return "count(" + field_name + ")";
+    } break;
+    case FUNC_WCOUNT: {
+      return "count(" + field_name + ")";
+    } break;
+    case FUNC_LENGTH: {
+      return parm.empty() ? "length(" + field_name + ")" : "length(" + field_name + "," + parm + ")";
+    } break;
+    case FUNC_ROUND: {
+      return parm.empty() ? "round(" + field_name + ")" : "round(" + field_name + "," + parm + ")";
+    } break;
+    case FUNC_DATE_FORMAT: {
+      return parm.empty() ? "date_format(" + field_name + ")" : "date_format(" + field_name + "," + parm + ")";
+    } break;
+    default:
+      return "";
+  }
+}

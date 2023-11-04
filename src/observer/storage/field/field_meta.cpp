@@ -210,7 +210,7 @@ RC ViewFieldMata::from_json(const Json::Value &json_value, ViewFieldMata &field)
 
 RC ViewFieldMata::init(int index, const char *name, const char *base_name, const char *relation_name)
 {
-  if (common::is_blank(name) || common::is_blank(base_name) || common::is_blank(relation_name)) {
+  if (common::is_blank(name) || common::is_blank(base_name)) {
     LOG_WARN("Name cannot be empty");
     return RC::INVALID_ARGUMENT;
   }

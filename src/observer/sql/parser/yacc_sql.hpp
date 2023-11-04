@@ -100,34 +100,33 @@ extern int yydebug;
     ON = 301,                      /* ON  */
     AS = 302,                      /* AS  */
     LOAD = 303,                    /* LOAD  */
-    DATA = 304,                    /* DATA  */
-    INFILE = 305,                  /* INFILE  */
-    EXPLAIN = 306,                 /* EXPLAIN  */
-    LENGTH = 307,                  /* LENGTH  */
-    ROUND = 308,                   /* ROUND  */
-    DATE_FORMAT = 309,             /* DATE_FORMAT  */
-    EQ = 310,                      /* EQ  */
-    LT = 311,                      /* LT  */
-    GT = 312,                      /* GT  */
-    LE = 313,                      /* LE  */
-    GE = 314,                      /* GE  */
-    NE = 315,                      /* NE  */
-    LIKE = 316,                    /* LIKE  */
-    NOT_LIKE = 317,                /* NOT_LIKE  */
-    INNER_JOIN = 318,              /* INNER_JOIN  */
-    NULL_T = 319,                  /* NULL_T  */
-    NOT_NULL = 320,                /* NOT_NULL  */
-    IS = 321,                      /* IS  */
-    IS_NOT = 322,                  /* IS_NOT  */
-    UNIQUE = 323,                  /* UNIQUE  */
-    IN_ = 324,                     /* IN_  */
-    NOT_IN_ = 325,                 /* NOT_IN_  */
-    EXISTS = 326,                  /* EXISTS  */
-    NOT_EXISTS = 327,              /* NOT_EXISTS  */
-    GROUP_BY = 328,                /* GROUP_BY  */
-    ORDER_BY = 329,                /* ORDER_BY  */
-    HAVING = 330,                  /* HAVING  */
-    UMINUS = 331                   /* UMINUS  */
+    DATA_INFILE = 304,             /* DATA_INFILE  */
+    EXPLAIN = 305,                 /* EXPLAIN  */
+    LENGTH = 306,                  /* LENGTH  */
+    ROUND = 307,                   /* ROUND  */
+    DATE_FORMAT = 308,             /* DATE_FORMAT  */
+    EQ = 309,                      /* EQ  */
+    LT = 310,                      /* LT  */
+    GT = 311,                      /* GT  */
+    LE = 312,                      /* LE  */
+    GE = 313,                      /* GE  */
+    NE = 314,                      /* NE  */
+    LIKE = 315,                    /* LIKE  */
+    NOT_LIKE = 316,                /* NOT_LIKE  */
+    INNER_JOIN = 317,              /* INNER_JOIN  */
+    NULL_T = 318,                  /* NULL_T  */
+    NOT_NULL = 319,                /* NOT_NULL  */
+    IS = 320,                      /* IS  */
+    IS_NOT = 321,                  /* IS_NOT  */
+    UNIQUE = 322,                  /* UNIQUE  */
+    IN_ = 323,                     /* IN_  */
+    NOT_IN_ = 324,                 /* NOT_IN_  */
+    EXISTS = 325,                  /* EXISTS  */
+    NOT_EXISTS = 326,              /* NOT_EXISTS  */
+    GROUP_BY = 327,                /* GROUP_BY  */
+    ORDER_BY = 328,                /* ORDER_BY  */
+    HAVING = 329,                  /* HAVING  */
+    UMINUS = 330                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -161,7 +160,7 @@ union YYSTYPE
   date                                          dates;
   bool                                          bools;
 
-#line 165 "yacc_sql.hpp"
+#line 164 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

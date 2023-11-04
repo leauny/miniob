@@ -47,7 +47,8 @@ public:
 
   RC create_table(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes);
 
-  RC create_view(const char *view_name, int attribute_count, const ViewInfoSqlNode *attributes, const char *condition);
+  RC create_view(const char *view_name, int attribute_count, const ViewInfoSqlNode *attributes, const char *condition,
+      const char *from, std::vector<Table *> &base_tables);
 
   RC drop_table(const char *table_name);
 

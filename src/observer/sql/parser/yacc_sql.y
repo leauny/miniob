@@ -132,8 +132,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         ON
         AS
         LOAD
-        DATA
-        INFILE
+        DATA_INFILE
         EXPLAIN
         LENGTH
         ROUND
@@ -1691,14 +1690,14 @@ expression:
     ;
 
 load_data_stmt:
-    LOAD DATA INFILE SSS INTO TABLE ID 
+    LOAD DATA_INFILE SSS INTO TABLE ID
     {
-      char *tmp_file_name = common::substr($4, 1, strlen($4) - 2);
+      char *tmp_file_name = common::substr($3, 1, strlen($3) - 2);
       
       $$ = new ParsedSqlNode(SCF_LOAD_DATA);
-      $$->load_data.relation_name = $7;
+      $$->load_data.relation_name = $6;
       $$->load_data.file_name = tmp_file_name;
-      free($7);
+      free($6);
       free(tmp_file_name);
     }
     ;

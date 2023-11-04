@@ -247,9 +247,9 @@ CLogManager *Db::clog_manager()
   return clog_manager_.get();
 }
 
-RC Db::create_view(const char *view_name, int attribute_count, const ViewInfoSqlNode *attributes, const char *condition)
+RC Db::create_view(const char *view_name, int attribute_count, const ViewInfoSqlNode *attributes, const char *condition,
+    const char *from, std::vector<Table *> &base_tables)
 {
-  // TODO: 没有实现，仅仅是create_table的内容
   RC rc = RC::SUCCESS;
   // check table_name
   if (opened_tables_.count(view_name) != 0) {
@@ -260,15 +260,7 @@ RC Db::create_view(const char *view_name, int attribute_count, const ViewInfoSql
   std::string view_file_path = view_meta_file(path_.c_str(), view_name);
   View *view = new View();
   int32_t view_id = next_table_id_++;
-  rc = view->create(
-      opened_tables_,
-      view_id,
-      view_file_path.c_str(),
-      view_name,
-      path_.c_str(),
-      attribute_count,
-      attributes,
-      condition);
+  rc = view->create(view_id, view_file_path.c_str(), view_name, path_.c_str(), attribute_count, attributes, condition, from, base_tables);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to create table %s.", view_name);
     delete view;

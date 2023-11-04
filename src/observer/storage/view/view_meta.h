@@ -29,7 +29,9 @@ public:
 
   void swap(ViewMeta &other) noexcept;
 
-  RC init(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *name, int attr_num, const ViewInfoSqlNode attributes[], const char * conditions);
+  RC init(const std::vector<Table*>& base_tables, int32_t view_id,
+      const char *name, int attr_num, const ViewInfoSqlNode attributes[],
+      const char * conditions, const char *from);
 
 public:
   int32_t table_id() const { return table_id_; }
@@ -56,6 +58,7 @@ protected:
   std::string name_;
   int32_t table_id_ = -1;
   std::string conditions_;
+  std::string from_;
   std::vector<ViewFieldMata> fields_;
   std::unordered_map<std::string, Table*> tables_;
 };

@@ -33,6 +33,9 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
     }
   }
 
+  // 获取基表
+  auto tables = reinterpret_cast<SelectStmt*>(select_stmt)->tables();
+
   // 创建视图属性映射
   std::string field_name;
   for (auto i = 0; i < exprs.size(); ++i) {
@@ -40,14 +43,19 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
     auto *expr = exprs[i].get();
     if (exprs[i]->type() == ExprType::FIELD) {
       view_info.relation_name = dynamic_cast<FieldExpr*>(exprs[i].get())->field().table_name();
+      view_info.base_name = view_info.relation_name + "." + expr->name();
     } else if (exprs[i]->type() == ExprType::FUNC) {
-      view_info.relation_name = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(expr)->child().get())->field().table_name();
+      auto func_expr = dynamic_cast<FieldExpr*>(dynamic_cast<FuncExpr*>(expr)->child().get());
+      view_info.relation_name = func_expr->field().table_name();
+      // auto name = view_info.relation_name + "." + func_expr->field().field_name();
+      auto name = func_expr->field().field_name();
+      view_info.base_name =  FuncExpr::gen_alias(dynamic_cast<FuncExpr*>(expr)->func_type(),
+          dynamic_cast<FuncExpr*>(expr)->get_parm(), name);
     } else {
-      sql_debug("selct expr %s, is not field type.", exprs[i]->name().c_str());
-      return RC::INTERNAL;
+      sql_debug("selct expr %s, is not field/func type.", exprs[i]->name().c_str());
+      view_info.base_name = expr->name();
     }
 
-    view_info.base_name = expr->name();                    // 设置对应的基表属性名
     if (have_field) {
       view_info.name = view_infos.at(i).name;              // 设置视图属性名
     } else {
@@ -55,13 +63,13 @@ RC CreateViewStmt::create(Db *db, const CreateViewSqlNode &create_view, Stmt *&s
         auto pos = expr->alias().find('.');
         view_info.name = pos == std::string::npos ? expr->alias() : expr->alias().substr(pos + 1);
       } else {
-        view_info.name = view_info.base_name;
+        view_info.name = expr->name();
       }
     }
 
     infos.emplace_back(std::move(view_info));
   }
-  auto *create_stmt = new CreateViewStmt(create_view.relation_name, std::move(infos));
+  auto *create_stmt = new CreateViewStmt(create_view.relation_name, std::move(infos), tables);
   sql_debug("create view statement: view name %s", create_view.relation_name.c_str());
   create_stmt->select_stmt_ = reinterpret_cast<SelectStmt*>(select_stmt);
   stmt = create_stmt;

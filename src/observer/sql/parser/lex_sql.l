@@ -147,8 +147,7 @@ DATE                                    RETURN_TOKEN(DATE_T);
 NULL                                    RETURN_TOKEN(NULL_T);
 "NOT NULL"                              RETURN_TOKEN(NOT_NULL);
 LOAD                                    RETURN_TOKEN(LOAD);
-DATA                                    RETURN_TOKEN(DATA);
-INFILE                                  RETURN_TOKEN(INFILE);
+"DATA INFILE"                           RETURN_TOKEN(DATA_INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 UNIQUE                                  RETURN_TOKEN(UNIQUE);
 

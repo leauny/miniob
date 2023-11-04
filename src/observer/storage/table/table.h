@@ -144,9 +144,8 @@ public:
    * @param attributes 字段
    * @param conditions 过滤条件
    */
-  RC create(const std::unordered_map<std::string, Table *> &opened_tables, int32_t view_id, const char *path,
-      const char *name, const char *base_dir, int attribute_count, const ViewInfoSqlNode *attributes,
-      const char *conditions);
+  RC create(int32_t view_id, const char *path, const char *name, const char *base_dir, int attribute_count,
+      const ViewInfoSqlNode *attributes, const char *conditions, const char *from, std::vector<Table *> &base_tables);
 
   RC drop (const char *name) override;
 

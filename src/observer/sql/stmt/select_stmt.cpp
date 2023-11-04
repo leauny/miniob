@@ -84,6 +84,13 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
+  // TODO: 判断relation是否都是视图，如果是则修改sql语句并重新执行
+  for (auto &table : tables) {
+    if (table->is_view()) {
+
+    }
+  }
+
   // collect tables in `from` statement
   std::vector<Table *> parent_tables;
   std::unordered_map<std::string, Table *> parent_table_map;

@@ -110,6 +110,8 @@ public:
   virtual const std::string& alias() const { return alias_; }
   virtual void set_alias(const std::string &alias) { alias_ = alias; }
 
+  static std::string gen_alias(FuncType type, std::string parm, std::string field_name);
+
 private:
   std::string  name_;
   std::string  alias_;
